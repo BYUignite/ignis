@@ -18,8 +18,8 @@ int rhsf_cvode(realtype t, N_Vector varsCV, N_Vector dvarsdtCV, void *user_data)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-flame::flame(const size_t _ngrd, const double _L, double _P, std::shared_ptr<Cantera::Solution> csol,
-             const std::vector<double> &_yLbc, const std::vector<double> &_yRbc, 
+flame::flame(const size_t _ngrd, const double _L, double _P, shared_ptr<Cantera::Solution> csol,
+             const vector<double> &_yLbc, const vector<double> &_yRbc, 
              const double _TLbc, const double _TRbc) :
     ngrd(_ngrd),
     L(_L),
@@ -52,6 +52,8 @@ flame::flame(const size_t _ngrd, const double _L, double _P, std::shared_ptr<Can
     hLbc = gas->enthalpy_mass();
     gas->setState_TPY(TRbc, P, &yRbc[0]);
     hRbc = gas->enthalpy_mass();
+
+    strm = streams(csol, P, hLbc, hRbc, yLbc, yRbc);
 
     hscale = max(abs(hLbc), abs(hRbc));
     Tscale = 2500;
@@ -91,14 +93,33 @@ void flame::setGrid(double _L) {
     x[0] = dx[0]/2;
     for (size_t i=1; i<ngrd; i++)
         x[i] = x[i-1] + (dx[i-1]+dx[i])/2;
-
-
-
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 void flame::writeFile(string fname) {
+
+    //-------------- compute auxiliary quantities
+
+    vector<double> mixf(ngrd, 0.0);
+    for(int i=0; i<ngrd; i++)
+        mixf[i] = strm.getMixtureFraction(&y[i][0]);
+    double mixfLbc = strm.getMixtureFraction(&yLbc[0]);
+    double mixfRbc = strm.getMixtureFraction(&yRbc[0]);
+
+    vector<double> rho(ngrd);
+    for(int i=0; i<ngrd; i++) {
+        gas->setState_TPY(T[i], P, &y[i][0]);
+        rho[i] = gas->density();
+    }
+    gas->setState_TPY(TLbc, P, &yLbc[0]);
+    double rhoLbc = gas->density();
+    gas->setState_TPY(TRbc, P, &yRbc[0]);
+    double rhoRbc = gas->density();
+
+
+    //-------------- 
+
 
     ofstream ofile(fname.c_str());
     if(!ofile) {
@@ -112,7 +133,9 @@ void flame::writeFile(string fname) {
     ofile << "#";
     int j=1;
     ofile << setw(15) << "00" << j++ << "_x";
+    ofile << setw(13) << "00" << j++ << "_mixf";
     ofile << setw(16) << "00" << j++ << "_T";
+    ofile << setw(10) << "00" << j++ << "_density";
     for(int k=0; k<nsp; k++) {
         stringstream ss; ss << setfill('0') << setw(3) << j++ << "_" << gas->speciesName(k);
         ofile << setw(19) << ss.str();
@@ -123,21 +146,27 @@ void flame::writeFile(string fname) {
 
     ofile << endl;
     ofile << setw(19) << 0;
+    ofile << setw(19) << mixfLbc;
     ofile << setw(19) << TLbc;
+    ofile << setw(19) << rhoLbc;
     for(int k=0; k<nsp; k++)
         ofile << setw(19) << yLbc[k];
 
     for(int i=0; i<ngrd; i++) {
         ofile << endl;
         ofile << setw(19) << x[i];
+        ofile << setw(19) << mixf[i];
         ofile << setw(19) << T[i];
+        ofile << setw(19) << rho[i];
         for(int k=0; k<nsp; k++)
             ofile << setw(19) << y[i][k];
     }
 
     ofile << endl;
     ofile << setw(19) << L;
+    ofile << setw(19) << mixfRbc;
     ofile << setw(19) << TRbc;
+    ofile << setw(19) << rhoRbc;
     for(int k=0; k<nsp; k++)
         ofile << setw(19) << yRbc[k];
 

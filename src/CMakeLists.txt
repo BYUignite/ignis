@@ -1,6 +1,6 @@
 
 add_executable(flame.x)
-target_sources(flame.x PRIVATE driver.cc flame.cc flame.h solver_kinsol.h integrator_cvode.h)
+target_sources(flame.x PRIVATE driver.cc flame.cc flame.h solver_kinsol.h integrator_cvode.h streams.cc streams.h)
 
 if(APPLE)
     find_library(ACCELERATE Accelerate)

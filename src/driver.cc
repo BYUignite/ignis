@@ -38,25 +38,25 @@ int main() {
 
     //---------------
 
-    // flm.setGrid(0.03); cout << endl << "L = " << flm.L << endl;
-    // flm.solveUnsteady();
-    // flm.writeFile("L_0.03U.dat");
+    flm.setGrid(0.03); cout << endl << "L = " << flm.L << endl;
+    flm.solveUnsteady(5, 1);
+    flm.writeFile("L_0.03U.dat");
 
     // flm.setGrid(0.02); cout << endl << "L = " << flm.L << endl;
     // flm.solveUnsteady();
     // flm.writeFile("L_0.02U.dat");
 
-    vector<double> Ls = {0.2, 0.04, 0.02, 0.008, 0.006, 0.004, 0.002, 0.001};
+    // vector<double> Ls = {0.2, 0.04, 0.02, 0.008, 0.006, 0.004, 0.002, 0.001};
 
-    for(int i=0; i<Ls.size(); i++) {
-        flm.setGrid(Ls[i]); cout << endl << "L = " << flm.L << endl;
-        int nsave = (Ls[i] != 0.002) ? 1 : 40;
-        int ntaurun = (Ls[i] != 0.002) ? 5 : 2;
-        flm.solveUnsteady(ntaurun, nsave);
-        // stringstream ss; ss << "L_" << Ls[i] << "U.dat";
-        // string fname = ss.str();
-        // flm.writeFile(fname);
-    }
+    // for(int i=0; i<Ls.size(); i++) {
+    //     flm.setGrid(Ls[i]); cout << endl << "L = " << flm.L << endl;
+    //     int nsave = (Ls[i] != 0.002) ? 1 : 40;
+    //     int ntaurun = (Ls[i] != 0.002) ? 5 : 2;
+    //     flm.solveUnsteady(ntaurun, nsave);
+    //     // stringstream ss; ss << "L_" << Ls[i] << "U.dat";
+    //     // string fname = ss.str();
+    //     // flm.writeFile(fname);
+    // }
 
     // double Lmax = 0.2;
     // double Lmin = 0.001;

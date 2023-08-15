@@ -4,6 +4,7 @@
 #include "cantera/thermo.h"
 #include "cantera/kinetics.h"
 #include "cantera/transport.h"
+#include "streams.h"
 
 #include <vector>
 #include <memory>
@@ -21,7 +22,7 @@ public:
     size_t nvarA;
 
     double                            P;
-    std::vector<std::vector<double> > y;
+    std::vector<std::vector<double> > y;           // y[igrid][isp]
     std::vector<double>               T;
 
     std::vector<double> yLbc, yRbc;
@@ -41,6 +42,8 @@ public:
     std::shared_ptr<Cantera::ThermoPhase> gas;
     std::shared_ptr<Cantera::Kinetics>    kin;
     std::shared_ptr<Cantera::Transport>   trn;
+
+    streams strm;
 
     std::vector<std::vector<double> > flux_y;      // flux_y[I(igrid, ksp)]
     std::vector<double>               flux_h;      // flux_h[igrid]
