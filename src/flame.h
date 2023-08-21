@@ -5,6 +5,7 @@
 #include "cantera/kinetics.h"
 #include "cantera/transport.h"
 #include "streams.h"
+#include "rad_planck_mean.h"
 
 #include <vector>
 #include <memory>
@@ -44,6 +45,8 @@ public:
     std::shared_ptr<Cantera::Transport>   trn;
 
     streams strm;
+    rad     *planckmean;
+    bool    LdoRadiation;
 
     std::vector<std::vector<double> > flux_y;      // flux_y[I(igrid, ksp)]
     std::vector<double>               flux_h;      // flux_h[igrid]
@@ -58,6 +61,7 @@ public:
     void solveUnsteady(int ntaurun, int nsave);
     int  Func(const double *vars, double *F);
     int  rhsf(const double *vars, double *dvarsdt);
+    void setQrad(std::vector<double> &Q);
 
     size_t I( size_t i, size_t k) { return i*nsp  + k; }     // y[I(i,k)] in 1D --> y[i,k] in 2D
     size_t Ia(size_t i, size_t k) { return i*nvar + k; }     // for indexing combined (a for all) vars
@@ -68,4 +72,8 @@ public:
           std::shared_ptr<Cantera::Solution> csol,
           const std::vector<double> &_yLbc, const std::vector<double> &_yRbc, 
           const double _TLbc, const double _TRbc);
+
+    ~flame() {
+        delete planckmean;
+    }
 };

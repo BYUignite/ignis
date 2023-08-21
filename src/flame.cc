@@ -63,6 +63,11 @@ flame::flame(const size_t _ngrd, const double _L, double _P, shared_ptr<Cantera:
     flux_y = vector<vector<double> >(ngrd+1, vector<double>(nsp, 0.0));
     flux_h.resize(ngrd+1);
 
+    //---------- radiation object
+
+    LdoRadiation = false;
+    planckmean = new rad_planck_mean();
+
 }
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -117,9 +122,7 @@ void flame::writeFile(string fname) {
     gas->setState_TPY(TRbc, P, &yRbc[0]);
     double rhoRbc = gas->density();
 
-
     //-------------- 
-
 
     ofstream ofile(fname.c_str());
     if(!ofile) {
@@ -452,6 +455,9 @@ int flame::Func(const double *vars, double *F) {
 
     setFluxes();
 
+    vector<double> Q(ngrd);
+    if(LdoRadiation) setQrad(Q);
+
     vector<double> rr(nsp);
 
     for(size_t i=0; i<ngrd; i++) {
@@ -462,6 +468,8 @@ int flame::Func(const double *vars, double *F) {
             F[Ia(i,k)]  = flux_y[i+1][k] - flux_y[i][k]
                          - rr[k]*gas->molecularWeight(k)*dx[i];
         F[Ia(i,nvar-1)] = (flux_h[i+1] - flux_h[i])/hscale; // dolh comment to remove h
+
+        if(LdoRadiation) F[Ia(i,nvar-1)] -= Q[i]/hscale;
     }
 
     //------------ augment for homotopy
@@ -494,6 +502,29 @@ int Func_kinsol(N_Vector varsKS, N_Vector fvec, void *user_data) {
 
 
 ////////////////////////////////////////////////////////////////////////////////
+
+void flame::setQrad(vector<double> &Q) {
+
+    vector<double> kabs, awts;
+    double fvsoot = 0.0;
+    double xH2O, xCO2, xCO, xCH4;
+    int isp;
+
+    for(int i=0; i<ngrd; i++) {
+        isp = gas->speciesIndex("H2O"); 
+        xH2O = y[i][isp]/gas->molecularWeight(isp)*gas->meanMolecularWeight();
+        isp = gas->speciesIndex("CO2"); 
+        xCO2 = y[i][isp]/gas->molecularWeight(isp)*gas->meanMolecularWeight();
+        isp = gas->speciesIndex("CO"); 
+        xCO = y[i][isp]/gas->molecularWeight(isp)*gas->meanMolecularWeight();
+        isp = gas->speciesIndex("CH4"); 
+        xCH4 = y[i][isp]/gas->molecularWeight(isp)*gas->meanMolecularWeight();
+        planckmean->get_k_a(kabs, awts, T[i], P, fvsoot, xH2O, xCO2, xCO, xCH4);
+
+        Q[i] = -4.0*rad::sigma*kabs[0]*(pow(T[i],4.0) - pow(TLbc,4.0));
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
@@ -569,6 +600,8 @@ int flame::rhsf(const double *vars, double *dvarsdt) {
     setFluxes();
 
     vector<double> rr(nsp);
+    vector<double> Q(ngrd);
+    if(LdoRadiation) setQrad(Q);
 
     for(size_t i=0; i<ngrd; i++) {
         gas->setMassFractions_NoNorm(&y[i][0]);
@@ -592,11 +625,12 @@ int flame::rhsf(const double *vars, double *dvarsdt) {
         }
         dvarsdt[Ia(i,nvar-1)] = (sum_hmdot + sum_hjejw/dx[i] - (flux_h[i+1] - flux_h[i])/dx[i] ) /
                                 (rho*cp) / Tscale;
+
+        if(LdoRadiation) dvarsdt[Ia(i,nvar-1)] += Q[i]/(rho*cp)/Tscale;
     }
 
     return 0;
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 // CVODE interface; CVODE calls this function, which then calls user_data's rhsf 
