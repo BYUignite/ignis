@@ -15,6 +15,6 @@ find_package(Python COMPONENTS Interpreter Development)
 
 target_include_directories(flame.x PRIVATE "/usr/local/include" "/opt/radlib/include")
 target_link_directories(   flame.x PRIVATE "/usr/local/lib" "/opt/radlib/lib")
-target_link_libraries(     flame.x ${CANTERA} ${YAML} ${KINSOL} ${CVODES} ${Python_LIBRARIES} ${ACCELERATE} radlib)
+target_link_libraries(     flame.x ${CANTERA} ${YAML} ${KINSOL} ${CVODES} ${Python_LIBRARIES} ${Python} ${ACCELERATE} radlib)
 
 install(TARGETS flame.x DESTINATION "${PROJECT_SOURCE_DIR}/run")
