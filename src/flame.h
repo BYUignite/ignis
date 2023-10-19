@@ -64,6 +64,7 @@ public:
     void writeFile(std::string fname);
     void solveSS();
     void solveUnsteady(double nTauRun, int nsave, bool Lwrite = true);
+    void solveUnsteadyTminTmax(double nTauRun, int nsave, double Tmin, double Tmax, bool Lwrite = true);
     int  Func(const double *vars, double *F);
     int  rhsf(const double *vars, double *dvarsdt);
     void setQrad(std::vector<double> &Q);

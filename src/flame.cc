@@ -590,13 +590,77 @@ void flame::solveUnsteady(double nTauRun, int nsave, bool Lwrite) {
     double tend = nTauRun*L*L/D;
     double dt = tend/nsave;
     for(int isave=1; isave<=nsave; isave++, t+=dt) {
-        cout << endl << "t = " << t; cout.flush();
+        //cout << endl << "t = " << t; cout.flush();
         integ.integrate(vars, dt);
 
         if(Lwrite) {
             stringstream ss; ss << "L_" << L << "U_" << setfill('0') << setw(3) << isave << ".dat";
             string fname = ss.str();
             writeFile(fname);
+        }
+
+    }
+
+    //---------- transfer variables back
+
+    for(size_t i=0; i<ngrd; i++) {
+        for(size_t k=0; k<nsp; k++)
+            y[i][k] = vars[Ia(i,k)];
+        T[i] = vars[Ia(i,nvar-1)]*Tscale;      // dolh comment to remove h
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// assumes y, T are initialized
+
+void flame::solveUnsteadyTminTmax(double nTauRun, int nsave, double Tmin, double Tmax, bool Lwrite) {
+
+    //---------- transfer variables into single array
+
+    vector<double> vars(nvarA);
+
+    for(size_t i=0; i<ngrd; i++) {
+        for(size_t k=0; k<nsp; k++)
+            vars[Ia(i,k)] = y[i][k];
+        vars[Ia(i,nvar-1)] = T[i]/Tscale;      // dolh comment to remove h
+    }
+    
+    //---------- setup solver
+
+    double rtol = 1E-4;                        // 1E-4 --> error at 0.01%, cvode documentation recomends < 1E-3
+    vector<double> atol(nvarA, 1.0);           // noise level of the given variable
+
+    for(int i=0; i<nvarA; i++)
+        atol[i] = 1E-12;
+        //atol[i] = vars[i] < 1E-3 ? 1E-3 : vars[i];
+
+
+    int mu = nvar*2-1;
+    int ml = nvar*2-1;
+    integrator_cvode integ(rhsf_cvode, this, nvarA, rtol, atol, mu, ml, vars);
+
+    //---------- solve
+
+    double D = 0.00035;     // avg thermal diffusivity
+    double dT = (Tmax-(Tmin+0.2))/nsave;
+    double Thit = Tmax - dT;
+    double t = 0.0;
+    double tend = nTauRun*L*L/D;
+    double nsteps = 1000;
+    double dt = tend/nsteps;
+    double isave = 1;
+    for(int istep=1; istep<=nsteps; istep++, t+=dt) {
+
+        integ.integrate(vars, dt);
+
+        double TmaxLocal = *max_element(T.begin(), T.end());
+
+        if(Lwrite && (TmaxLocal <= Thit)) {
+            cout << endl << isave << "  " << Tmin << "  " << TmaxLocal << "  " << Thit << "  " << Tmax;
+            stringstream ss; ss << "L_" << L << "U_" << setfill('0') << setw(3) << isave++ << ".dat";
+            string fname = ss.str();
+            writeFile(fname);
+            Thit -= dT;
         }
 
     }
