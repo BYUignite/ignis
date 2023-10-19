@@ -33,14 +33,41 @@ int main() {
               yLbc, yRbc, TLbc, TRbc);
 
     flm.setIC("equilibrium");
-
     flm.writeFile("IC.dat");
 
     //---------------
 
-    flm.setGrid(0.03); cout << endl << "L = " << flm.L << endl;
-    flm.solveUnsteady(5, 1);
-    flm.writeFile("L_0.03U.dat");
+    double nTauSS   = 5;
+    int    nsaveSS  = 1;
+    double nTauU    = 4;
+    int    nsaveU   = 40;
+
+    vector<double> Ls = {0.2, 0.04, 0.02, 0.008, 0.006, 0.004}; //, 0.002, 0.001};
+    for(int i=0; i<Ls.size(); i++) {
+        L = Ls[i];
+        flm.setGrid(L); cout << endl << "L = " << flm.L << endl;
+        flm.LdoRadiation = false;
+        flm.solveUnsteady(nTauSS, nsaveSS, false);
+
+        stringstream ss; ss << "L_" << L << "S_" << setfill('0') << setw(3) << 0 << ".dat";
+        string fname = ss.str();
+        flm.writeFile(fname);
+
+        flm.storeState();
+        flm.LdoRadiation = true;
+        flm.solveUnsteady(nTauU,  nsaveU);
+        flm.setIC("stored");
+    }
+
+
+
+
+
+    //---------------
+
+    // flm.setGrid(0.03); cout << endl << "L = " << flm.L << endl;
+    // flm.solveUnsteady(5, 1);
+    // flm.writeFile("L_0.03U.dat");
 
     // flm.setGrid(0.02); cout << endl << "L = " << flm.L << endl;
     // flm.solveUnsteady();

@@ -26,6 +26,10 @@ public:
     std::vector<std::vector<double> > y;           // y[igrid][isp]
     std::vector<double>               T;
 
+    double                            Pstore;
+    std::vector<std::vector<double> > ystore;      // y[igrid][isp]
+    std::vector<double>               Tstore;
+
     std::vector<double> yLbc, yRbc;
     double TLbc, TRbc;
     double hLbc, hRbc;
@@ -54,11 +58,12 @@ public:
     ////////////////////// member functions
 
     void setIC(std::string icType, std::string fname="");
+    void storeState();
     void setFluxes();
     void setGrid(double _L);
     void writeFile(std::string fname);
     void solveSS();
-    void solveUnsteady(int ntaurun, int nsave);
+    void solveUnsteady(double nTauRun, int nsave, bool Lwrite = true);
     int  Func(const double *vars, double *F);
     int  rhsf(const double *vars, double *dvarsdt);
     void setQrad(std::vector<double> &Q);
