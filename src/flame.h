@@ -52,6 +52,10 @@ public:
     rad     *planckmean;
     bool    LdoRadiation;
 
+    double Ttarget;
+    double dT;
+    int isave;
+
     std::vector<std::vector<double> > flux_y;      // flux_y[I(igrid, ksp)]
     std::vector<double>               flux_h;      // flux_h[igrid]
 
@@ -63,8 +67,7 @@ public:
     void setGrid(double _L);
     void writeFile(std::string fname);
     void solveSS();
-    void solveUnsteady(double nTauRun, int nsave, bool Lwrite = true);
-    void solveUnsteadyTminTmax(double nTauRun, int nsave, double Tmin, double Tmax, bool Lwrite = true);
+    void solveUnsteady(double nTauRun, int nsteps, bool LwriteTime=true, double Tmin=0, double Tmax=0);
     int  Func(const double *vars, double *F);
     int  rhsf(const double *vars, double *dvarsdt);
     void setQrad(std::vector<double> &Q);
