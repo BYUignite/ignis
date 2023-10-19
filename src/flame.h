@@ -26,6 +26,10 @@ public:
     std::vector<std::vector<double> > y;           // y[igrid][isp]
     std::vector<double>               T;
 
+    double                            Pstore;
+    std::vector<std::vector<double> > ystore;      // y[igrid][isp]
+    std::vector<double>               Tstore;
+
     std::vector<double> yLbc, yRbc;
     double TLbc, TRbc;
     double hLbc, hRbc;
@@ -48,17 +52,22 @@ public:
     rad     *planckmean;
     bool    LdoRadiation;
 
+    double Ttarget;
+    double dT;
+    int isave;
+
     std::vector<std::vector<double> > flux_y;      // flux_y[I(igrid, ksp)]
     std::vector<double>               flux_h;      // flux_h[igrid]
 
     ////////////////////// member functions
 
     void setIC(std::string icType, std::string fname="");
+    void storeState();
     void setFluxes();
     void setGrid(double _L);
     void writeFile(std::string fname);
     void solveSS();
-    void solveUnsteady(int ntaurun, int nsave);
+    void solveUnsteady(double nTauRun, int nsteps, bool LwriteTime=true, double Tmin=0, double Tmax=0);
     int  Func(const double *vars, double *F);
     int  rhsf(const double *vars, double *dvarsdt);
     void setQrad(std::vector<double> &Q);

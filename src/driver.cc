@@ -5,6 +5,7 @@
 #include <sstream>
 #include <string>
 #include <iomanip>
+#include <algorithm>
 
 using namespace std;
 
@@ -33,67 +34,63 @@ int main() {
               yLbc, yRbc, TLbc, TRbc);
 
     flm.setIC("equilibrium");
-
+    flm.storeState();
     flm.writeFile("IC.dat");
 
     //---------------
 
-    flm.setGrid(0.03); cout << endl << "L = " << flm.L << endl;
-    flm.solveUnsteady(5, 1);
-    flm.writeFile("L_0.03U.dat");
+    double nTauSS     = 5;
+    int    nsaveSS    = 1;
+    double nTauU      = 5;
+    int    nsaveU     = 10;
 
-    // flm.setGrid(0.02); cout << endl << "L = " << flm.L << endl;
-    // flm.solveUnsteady();
-    // flm.writeFile("L_0.02U.dat");
+    vector<double> Ls = {0.2, 0.04, 0.02, 0.008, 0.006, 0.004, 0.002};
+    
+    double Tmin, Tmax;
 
-    // vector<double> Ls = {0.2, 0.04, 0.02, 0.008, 0.006, 0.004, 0.002, 0.001};
+    for(int i=0; i<Ls.size(); i++) {
+        L = Ls[i];
 
-    // for(int i=0; i<Ls.size(); i++) {
-    //     flm.setGrid(Ls[i]); cout << endl << "L = " << flm.L << endl;
-    //     int nsave = (Ls[i] != 0.002) ? 1 : 40;
-    //     int ntaurun = (Ls[i] != 0.002) ? 5 : 2;
-    //     flm.solveUnsteady(ntaurun, nsave);
-    //     // stringstream ss; ss << "L_" << Ls[i] << "U.dat";
-    //     // string fname = ss.str();
-    //     // flm.writeFile(fname);
-    // }
+        //----- do SS solution
 
-    // double Lmax = 0.2;
-    // double Lmin = 0.001;
-    // double dL = 0.001;
-    // for(double L=Lmax; L>=Lmin; L-= dL){
-    //     flm.setGrid(L); cout << endl << "L = " << flm.L << endl;
-    //     flm.solveSS();
-    //     stringstream ss; ss << "L_" << L << ".dat";
-    //     string fname = ss.str();
-    //     flm.writeFile(fname);
-    //}
+        Tmax = *max_element(flm.T.begin(), flm.T.end());
+        flm.setGrid(L); cout << "\n\nL = " << flm.L << endl;
+        cout << endl << "do SS"; cout.flush();
+        flm.LdoRadiation = false;
+        flm.solveUnsteady(nTauSS, nsaveSS, false);
 
-    // flm.setIC("equilibrium");
+        //----- if blows out, rerun, store as it blows out, else run unsteady with heat loss
 
-    // flm.setGrid(0.2); cout << endl << "L = " << flm.L << endl;
-    // flm.solveSS();
-    // flm.writeFile("L_0.2.dat");
+        if(*max_element(flm.T.begin(), flm.T.end()) < 1.05*min(TLbc, TRbc)) {
+            cout << endl << "Extinction for L=" << flm.L << endl;
+            Tmin = *max_element(flm.T.begin(), flm.T.end());
+            flm.setIC("stored");
+            flm.solveUnsteady(nTauU,  nsaveU, false, Tmin, Tmax);
+        }
 
+        else {
+            stringstream ss; ss << "L_" << L << "S_" << setfill('0') << setw(3) << 0 << ".dat";
+            string fname = ss.str();
+            flm.writeFile(fname);
 
+            Tmax = *max_element(flm.T.begin(), flm.T.end());
+            flm.storeState();
 
-    // flm.setGrid(0.001); cout << endl << "L = " << flm.L << endl;
-    // flm.solveSS();
-    // flm.writeFile("L_0.001.dat");
+            //----- do unsteady with radiation to find Tmin
 
+            cout << endl << "do unsteady to get Tmin";
+            flm.LdoRadiation = true;
+            flm.solveUnsteady(nTauU,  1, false);
+            Tmin = *max_element(flm.T.begin(), flm.T.end());
+            flm.setIC("stored");
 
+            //----- do unsteady with radiation nominally evenly spaced between Tmax and Tmin
 
-    // double Lmax = 0.2;
-    // double Lmin = 0.003;
-    // double dL = 0.001;
-    // for(double L=Lmax; L>=Lmin; L-= dL){
-    //     flm.setGrid(L); cout << endl << "L = " << flm.L << endl;
-    //     flm.solveSS();
-    //     stringstream ss; ss << "L_" << L << ".dat";
-    //     string fname = ss.str();
-    //     flm.writeFile(fname);
-    // }
-
+            cout << endl << "do unsteady";
+            flm.solveUnsteady(nTauU,  nsaveU, false, Tmin, Tmax);
+            flm.setIC("stored");
+        }
+    }
 
     return 0;
 }

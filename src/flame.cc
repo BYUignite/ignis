@@ -68,6 +68,8 @@ flame::flame(const size_t _ngrd, const double _L, double _P, shared_ptr<Cantera:
     LdoRadiation = false;
     planckmean = new rad_planck_mean();
 
+    Ttarget = 0.0;
+
 }
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -113,9 +115,11 @@ void flame::writeFile(string fname) {
     double mixfRbc = strm.getMixtureFraction(&yRbc[0]);
 
     vector<double> rho(ngrd);
+    vector<double> h(ngrd);
     for(int i=0; i<ngrd; i++) {
         gas->setState_TPY(T[i], P, &y[i][0]);
         rho[i] = gas->density();
+        h[i] = gas->enthalpy_mass();
     }
     gas->setState_TPY(TLbc, P, &yLbc[0]);
     double rhoLbc = gas->density();
@@ -138,6 +142,7 @@ void flame::writeFile(string fname) {
     ofile << setw(15) << "00" << j++ << "_x";
     ofile << setw(13) << "00" << j++ << "_mixf";
     ofile << setw(16) << "00" << j++ << "_T";
+    ofile << setw(16) << "00" << j++ << "_h";
     ofile << setw(10) << "00" << j++ << "_density";
     for(int k=0; k<nsp; k++) {
         stringstream ss; ss << setfill('0') << setw(3) << j++ << "_" << gas->speciesName(k);
@@ -151,6 +156,7 @@ void flame::writeFile(string fname) {
     ofile << setw(19) << 0;
     ofile << setw(19) << mixfLbc;
     ofile << setw(19) << TLbc;
+    ofile << setw(19) << hLbc;
     ofile << setw(19) << rhoLbc;
     for(int k=0; k<nsp; k++)
         ofile << setw(19) << yLbc[k];
@@ -160,6 +166,7 @@ void flame::writeFile(string fname) {
         ofile << setw(19) << x[i];
         ofile << setw(19) << mixf[i];
         ofile << setw(19) << T[i];
+        ofile << setw(19) << h[i];
         ofile << setw(19) << rho[i];
         for(int k=0; k<nsp; k++)
             ofile << setw(19) << y[i][k];
@@ -169,11 +176,21 @@ void flame::writeFile(string fname) {
     ofile << setw(19) << L;
     ofile << setw(19) << mixfRbc;
     ofile << setw(19) << TRbc;
+    ofile << setw(19) << hRbc;
     ofile << setw(19) << rhoRbc;
     for(int k=0; k<nsp; k++)
         ofile << setw(19) << yRbc[k];
 
     ofile.close();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void flame::storeState() {
+
+    Pstore = P;
+    ystore = y;
+    Tstore = T;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -210,6 +227,12 @@ void flame::setIC(std::string icType, string fname) {
         }
     }
 
+    else if (icType == "stored") {
+        P = Pstore;
+        y = ystore;
+        T = Tstore;
+    }
+
     //-------------------
 
     // else if (icType == "file") {{{{
@@ -238,6 +261,10 @@ void flame::setIC(std::string icType, string fname) {
     //     }
 
     // }}}}
+
+    //-------------------
+
+    storeState();
 
 }
 
@@ -526,13 +553,12 @@ void flame::setQrad(vector<double> &Q) {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////
 // assumes y, T are initialized
+// Two modes: write on every time step of size dt, or write on temperature steps of size dT
+// Default is in time --> Tmin, Tmax are zero --> dT = 0
+// Lwrite = true (default) --> write in time;
 
-void flame::solveUnsteady(int ntaurun, int nsave) {
+void flame::solveUnsteady(double nTauRun, int nsteps, bool LwriteTime, double Tmin, double Tmax) {
 
     //---------- transfer variables into single array
 
@@ -562,16 +588,21 @@ void flame::solveUnsteady(int ntaurun, int nsave) {
 
     double D = 0.00035;     // avg thermal diffusivity
     double t = 0.0;
-    double tend = ntaurun*L*L/D;
-    double dt = tend/nsave;
-    for(int isave=1; isave<=nsave; isave++, t+=dt) {
-        cout << endl << "t = " << t; cout.flush();
+    double tend = nTauRun*L*L/D;
+    double dt = tend/nsteps;
+    dT = Tmax==Tmin ? 0.0 : (Tmax-(Tmin+0.1))/nsteps;
+    Ttarget = Tmax - dT;
+    isave = 1;
+
+    for(int istep=1; istep<=nsteps; istep++, t+=dt) {
+
         integ.integrate(vars, dt);
 
-        stringstream ss; ss << "L_" << L << "U_" << isave << ".dat";
-        string fname = ss.str();
-        writeFile(fname);
-
+        if(LwriteTime && dT <= 0.0) {           // write in time; (write in Temp is in rhsf)
+            stringstream ss; ss << "L_" << L << "U_" << setfill('0') << setw(3) << isave++ << ".dat";
+            string fname = ss.str();
+            writeFile(fname);
+        }
     }
 
     //---------- transfer variables back
@@ -581,6 +612,8 @@ void flame::solveUnsteady(int ntaurun, int nsave) {
             y[i][k] = vars[Ia(i,k)];
         T[i] = vars[Ia(i,nvar-1)]*Tscale;      // dolh comment to remove h
     }
+
+    Ttarget = 0.0;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -594,8 +627,7 @@ int flame::rhsf(const double *vars, double *dvarsdt) {
             y[i][k] = vars[Ia(i,k)];
         T[i] = vars[Ia(i,nvar-1)]*Tscale;      // dolh comment to remove h
     }
-
-    //------------ set rates dvarsdt (dvars/dt)
+//------------ set rates dvarsdt (dvars/dt)
 
     setFluxes();
 
@@ -628,6 +660,19 @@ int flame::rhsf(const double *vars, double *dvarsdt) {
 
         if(LdoRadiation) dvarsdt[Ia(i,nvar-1)] += Q[i]/(rho*cp)/Tscale;
     }
+
+    //-------------
+
+    double TmaxLocal = *max_element(T.begin(), T.end());
+    if(TmaxLocal <= Ttarget) {
+        cout << endl << isave << "  " << TmaxLocal << "  " << Ttarget << "  ";
+        stringstream ss; ss << "L_" << L << "U_" << setfill('0') << setw(3) << isave++ << ".dat";
+        string fname = ss.str();
+        writeFile(fname);
+        Ttarget -= dT;
+    }
+
+    //-------------
 
     return 0;
 }
