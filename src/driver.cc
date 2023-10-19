@@ -34,45 +34,62 @@ int main() {
               yLbc, yRbc, TLbc, TRbc);
 
     flm.setIC("equilibrium");
+    flm.storeState();
     flm.writeFile("IC.dat");
 
     //---------------
 
     double nTauSS     = 5;
     int    nsaveSS    = 1;
-    double nTauU      = 4;
+    double nTauU      = 5;
     int    nsaveU     = 10;
 
-    vector<double> Ls = {0.2, 0.04, 0.02, 0.008, 0.006, 0.004}; //, 0.002, 0.001};
+    vector<double> Ls = {0.2, 0.04, 0.02, 0.008, 0.006, 0.004, 0.002};
+    
+    double Tmin, Tmax;
 
     for(int i=0; i<Ls.size(); i++) {
         L = Ls[i];
 
         //----- do SS solution
 
-        flm.setGrid(L); cout << endl << "L = " << flm.L << endl << endl;
+        Tmax = *max_element(flm.T.begin(), flm.T.end());
+        flm.setGrid(L); cout << "\n\nL = " << flm.L << endl;
         cout << endl << "do SS"; cout.flush();
         flm.LdoRadiation = false;
         flm.solveUnsteady(nTauSS, nsaveSS, false);
-        stringstream ss; ss << "L_" << L << "S_" << setfill('0') << setw(3) << 0 << ".dat";
-        string fname = ss.str();
-        flm.writeFile(fname);
-        double Tmax = *max_element(flm.T.begin(), flm.T.end());
-        flm.storeState();
 
-        //----- do unsteady with radiation to find Tmin
+        //----- if blows out, rerun, store as it blows out, else run unsteady with heat loss
 
-        cout << endl << "do unsteady to get Tmin";
-        flm.LdoRadiation = true;
-        flm.solveUnsteady(nTauU,  1, false);
-        double Tmin = *max_element(flm.T.begin(), flm.T.end());
-        flm.setIC("stored");
+        if(*max_element(flm.T.begin(), flm.T.end()) < 1.05*min(TLbc, TRbc)) {
+            cout << endl << "Extinction for L=" << flm.L << endl;
+            Tmin = *max_element(flm.T.begin(), flm.T.end());
+            flm.setIC("stored");
+            flm.solveUnsteady(nTauU,  nsaveU, false, Tmin, Tmax);
+        }
 
-        //----- do unsteady with radiation nominally evenly spaced between Tmax and Tmin
+        else {
+            stringstream ss; ss << "L_" << L << "S_" << setfill('0') << setw(3) << 0 << ".dat";
+            string fname = ss.str();
+            flm.writeFile(fname);
 
-        cout << endl << "do unsteady";
-        flm.solveUnsteady(nTauU,  nsaveU, false, Tmin, Tmax);
-        flm.setIC("stored");
+            Tmax = *max_element(flm.T.begin(), flm.T.end());
+            flm.storeState();
+
+            //----- do unsteady with radiation to find Tmin
+
+            cout << endl << "do unsteady to get Tmin";
+            flm.LdoRadiation = true;
+            flm.solveUnsteady(nTauU,  1, false);
+            Tmin = *max_element(flm.T.begin(), flm.T.end());
+            flm.setIC("stored");
+
+            //----- do unsteady with radiation nominally evenly spaced between Tmax and Tmin
+
+            cout << endl << "do unsteady";
+            flm.solveUnsteady(nTauU,  nsaveU, false, Tmin, Tmax);
+            flm.setIC("stored");
+        }
     }
 
     return 0;
