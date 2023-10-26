@@ -6,7 +6,6 @@ if(APPLE)
     find_library(ACCELERATE Accelerate)
     find_library(YAML yaml-cpp)
 endif()
-find_package(Threads REQUIRED)
 
 find_library(KINSOL sundials_kinsol)
 find_library(CVODES sundials_cvodes)
