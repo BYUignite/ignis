@@ -79,7 +79,7 @@ void streams::getEquilibrium_HP(const double mixf, vector<double> &yeq,
         yeq[k] = y1[k]*mixf + y0[k]*(1.0-mixf);
     heq = h1*mixf + h0*(1.0-mixf);
 
-    gas->setState_PY(P, &yeq[0]);
+    gas->setMassFractions(&yeq[0]);
     gas->setState_HP(heq, P, 1.E-10);
 
     gas->equilibrate("HP");
@@ -160,9 +160,9 @@ void streams::getProdOfCompleteComb(const double mixf, vector<double> &ypcc,
     gas->setMassFractions( &ypcc[0] );
     gas->getMoleFractions( &ypcc[0] );
 
-    double nOnotFromO2  = 0.0;
-    double nHnotFromH2O = 0.0;
-    double nCnotFromCO2 = 0.0;
+    double nOnotFromO2;
+    double nHnotFromH2O;
+    double nCnotFromCO2;
     vector<double> elemM = getElementMoles( &ypcc[0], nOnotFromO2,
             nHnotFromH2O, nCnotFromCO2 );
 
@@ -232,8 +232,8 @@ void streams::setStoicMixf() {
 
     double mc0, mc1, mo0, mo1, mh0, mh1;
 
-    vector<double> elemMassFrac0 = setElementMassFracs(&y0[0]);
-    vector<double> elemMassFrac1 = setElementMassFracs(&y1[0]);
+    vector<double> elemMassFrac0 = getElementMassFracs(&y0[0]);
+    vector<double> elemMassFrac1 = getElementMassFracs(&y1[0]);
 
     mc0 = elemMassFrac0[gas->elementIndex("C")]/
         gas->atomicWeight(gas->elementIndex("C"));
@@ -261,57 +261,13 @@ void streams::setStoicMixf() {
  *  @return vector of element mass fractions.
  */
 
-vector<double> streams::setElementMassFracs(const double *y) {
+vector<double> streams::getElementMassFracs(const double *y) {
 
-
-    vector<double> atomArr(gas->nElements());
     vector<double> elemMassFrac(gas->nElements(), 0.0);
-    double sum = 0.0;
-
     gas->setMassFractions( &y[0] );
-
-    for(int k=0; k<nspc; k++) {
-        sum=0.0;
-        gas->getAtoms(k, &atomArr[0]);           // [nelements] in sp k
-        for(int m=0; m<(int)atomArr.size(); m++)
-            sum += atomArr[m] * gas->atomicWeight(m);
-        for(int m=0; m<(int)atomArr.size(); m++)
-            elemMassFrac[m] += y[k] * atomArr[m]/sum * gas->atomicWeight(m);
-                              // is * mass frac of elem in sp
-    }
-
+    for(int k=0; k<gas->nElements(); k++)
+        elemMassFrac[k] = gas->elementalMassFraction(k);
     return elemMassFrac;
-
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/** Sets the elements to have the correct Mole Fractions based on the specified array.
- *  @param y \input mass fraction array to use to get corresponding element fractions.
- *  @return vector of element mole fractions.
- */
-
-vector<double> streams::setElementMoleFracs(const double *y) {
-
-
-    vector<double> atomArr(gas->nElements());
-    vector<double> elemMoleFrac(gas->nElements(), 0.0);
-
-    gas->setMassFractions( &y[0] );
-
-    for(int k=0; k<nspc; k++) {
-        gas->getAtoms(k, &atomArr[0]);           // [nelements] in sp k
-        for(int m=0; m<(int)atomArr.size(); m++)
-            elemMoleFrac[m] += gas->moleFraction(k) * atomArr[m];
-    }
-    double sum = 0.0;
-    for(int m=0; m<(int)atomArr.size(); m++)
-        sum += elemMoleFrac[m];
-    assert(sum != 0.0);
-    for(int m=0; m<(int)atomArr.size(); m++)
-        elemMoleFrac[m] /= sum;
-
-    return elemMoleFrac;
-
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -328,8 +284,11 @@ vector<double> streams::getElementMoles(const double *x,
                                         double &nHnotFromH2O,
                                         double &nCnotFromCO2) {
 
+    nOnotFromO2  = 0.0;
+    nHnotFromH2O = 0.0;
+    nCnotFromCO2 = 0.0;
 
-    vector<double> atomArr(gas->nElements());
+    //vector<double> atomArr(gas->nElements());
     vector<double> elemM(gas->nElements(), 0.0);
     int iO2  = gas->speciesIndex("O2");
     int iO   = gas->elementIndex("O");
@@ -339,15 +298,16 @@ vector<double> streams::getElementMoles(const double *x,
     int iH   = gas->elementIndex("H");
 
     for(int k=0; k<nspc; k++) {
-        gas->getAtoms(k, &atomArr[0]);           // [nelements] in sp k
-        for(int m=0; m<(int)atomArr.size(); m++)
-            elemM[m] += x[k] * atomArr[m];
-        if(k != iO2)  nOnotFromO2  += atomArr[iO] * x[k];
-        if(k != iCO2) nCnotFromCO2 += atomArr[iC] * x[k];
-        if(k != iH2O) nHnotFromH2O += atomArr[iH] * x[k];
+        vector<double> xx(gas->nSpecies(), 0.0);
+        xx[k] = 1.0;
+        gas->setMoleFractions(&xx[0]);
+        for(int m=0; m<gas->nElements(); m++)
+            elemM[m] += x[k] * gas->elementalMoleFraction(m);
+        if(k != iO2)  nOnotFromO2  += gas->elementalMoleFraction(iO) * x[k];
+        if(k != iCO2) nCnotFromCO2 += gas->elementalMoleFraction(iC) * x[k];
+        if(k != iH2O) nHnotFromH2O += gas->elementalMoleFraction(iH) * x[k];
     }
     return elemM;
-
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -365,20 +325,20 @@ double streams::getMixtureFraction(const double *y, const bool doBeta01) {
     vector<double> elemMF;
     double         beta;
 
-    elemMF = setElementMassFracs(y);
+    elemMF = getElementMassFracs(y);
     beta   = gCHON[0] * elemMF[gas->elementIndex("C")] +
              gCHON[1] * elemMF[gas->elementIndex("H")] +
              gCHON[2] * elemMF[gas->elementIndex("O")] +
              gCHON[3] * elemMF[gas->elementIndex("N")];
 
     if(doBeta01) {
-        elemMF = setElementMassFracs(&y0[0]);
+        elemMF = getElementMassFracs(&y0[0]);
         beta0  = gCHON[0] * elemMF[gas->elementIndex("C")] +
                  gCHON[1] * elemMF[gas->elementIndex("H")] +
                  gCHON[2] * elemMF[gas->elementIndex("O")] +
                  gCHON[3] * elemMF[gas->elementIndex("N")];
 
-        elemMF = setElementMassFracs(&y1[0]);
+        elemMF = getElementMassFracs(&y1[0]);
         beta1  = gCHON[0] * elemMF[gas->elementIndex("C")] +
                  gCHON[1] * elemMF[gas->elementIndex("H")] +
                  gCHON[2] * elemMF[gas->elementIndex("O")] +

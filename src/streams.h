@@ -68,8 +68,8 @@ class streams {
     private:
 
         void setStoicMixf();
-        std::vector<double> setElementMassFracs(const double *y);
-        std::vector<double> setElementMoleFracs(const double *y);
+        std::vector<double> getElementMassFracs(const double *y);
+        std::vector<double> getElementMoleFracs(const double *y);
         std::vector<double> getElementMoles(const double *x,
                                        double &nOnotFromO2,
                                        double &nHnotFromH2O,
