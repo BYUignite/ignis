@@ -4,12 +4,12 @@ target_sources(flame.x PRIVATE driver.cc flame.cc flame.h solver_kinsol.h integr
 
 if(APPLE)
     find_library(ACCELERATE Accelerate)
-    find_library(YAML yaml-cpp)
     find_library(CANTERA cantera)
 else()
-    find_library(CANTERA cantera_shared)
+    find_library(CANTERA cantera_shared HINTS "/usr/local/cantera/lib/")
 endif()
 
+#find_library(YAML yaml-cpp)
 find_library(KINSOL sundials_kinsol)
 find_library(CVODES sundials_cvodes)
 
