@@ -63,6 +63,7 @@ public:
 
     void setIC(std::string icType, std::string fname="");
     void storeState();
+    void setFluxesUnity();
     void setFluxes();
     void setGrid(double _L);
     void writeFile(std::string fname);

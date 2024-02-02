@@ -269,9 +269,9 @@ void flame::setIC(std::string icType, string fname) {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// unity Le for all species
+// assuming unity Le for all species
 
-void flame::setFluxes() {
+void flame::setFluxesUnity() {
 
     //---------- cell center density and diffusivity
 
@@ -324,87 +324,128 @@ void flame::setFluxes() {
         flux_h[i] = -density_f[i]*D_f[i]*(h[i]-h[i-1])*2/(dx[i-1]+dx[i]);
 }
 
-//////////////////////////////////////////////////////////////////////////////////{{{
-//// unity Le for all species
+//////////////////////////////////////////////////////////////////////////////////
+////  Non-unity Le for all species
 
-//void flame::setFluxes() {
+void flame::setFluxes() {
 
-//    //---------- cell center density and diffusivity
+    //---------- cell center density and diffusivity
+    vector<vector<double>> D(ngrd, vector<double> (nsp,0.0));
+    vector<double> density(ngrd);
+    vector<double> M(ngrd);
+    vector<double> tcond(ngrd);
+    for(int i=0; i<ngrd; i++) {
+        gas->setMassFractions_NoNorm(&y[i][0]);
+        gas->setState_TP(T[i], P);
+        density[i] = gas->density();
+        M[i] = gas->meanMolecularWeight();
+        trn->getMixDiffCoeffs(&D[i][0]);
+        tcond[i] = trn->thermalConductivity();
+    }
 
-//    vector<double> D(ngrd);
-//    vector<double> tcond(ngrd);
-//    vector<double> density(ngrd);
-//    for(int i=0; i<ngrd; i++) {
-//        gas->setMassFractions_NoNorm(&y[i][0]);
-//        gas->setState_TP(T[i], P);
-//        density[i] = gas->density();
-//        D[i] = trn->thermalConductivity()/(density[i]*gas->cp_mass());
-//    }
+    //---------- interpolate to face center density and diffusivity
 
-//    //---------- interpolate to face center density and diffusivity
+    vector<vector<double>> D_f(ngrd+1, vector<double> (nsp,0.0));
+    vector<vector<double>> y_f(ngrd+1, vector<double> (nsp,0.0));
+    vector<double> density_f(ngrd+1);
+    vector<double> M_f(ngrd+1);
+    vector<double> tcond_f(ngrd+1);
+    vector<double> T_f(ngrd+1);
 
 
-//    vector<double> D_f(ngrd+1);
-//    vector<double> tcond_f(ngrd+1);
-//    vector<double> density_f(ngrd+1);
-//    vector<double> T_f(ngrd+1);
+    gas->setState_TPY(TLbc, P, &yLbc[0]);
+    density_f[0] = gas->density();
+    M_f[0] = gas->meanMolecularWeight();
+    trn->getMixDiffCoeffs(&D_f[0][0]);
+    tcond_f[0] = trn->thermalConductivity();
+    T_f[0] = TLbc;
+    y_f[0] = yLbc;
 
-//    gas->setState_TPY(TLbc, P, &yLbc[0]);
-//    density_f[0] = gas->density();
-//    tcond_f[0] = trn->thermalConductivity();
-//    D_f[0] = tcond_f[0]/(density_f[0]*gas->cp_mass());
-//    T_f[0] = TLbc;
+    gas->setState_TPY(TRbc, P, &yRbc[0]);
+    density_f.back() = gas->density();
+    M_f.back() = gas->meanMolecularWeight();
+    trn->getMixDiffCoeffs(&(D_f.back()[0]));
+    tcond_f.back() = trn->thermalConductivity();
+    T_f.back() = TRbc;
+    y_f.back() = yRbc;
 
-//    gas->setState_TPY(TRbc, P, &yRbc[0]);
-//    density_f.back() = gas->density();
-//    tcond_f.back() = trn->thermalConductivity();
-//    D_f.back() = tcond_f.back()/(density_f.back()*gas->cp_mass());
-//    T_f.back() = TRbc;
+    for (int i=1; i<ngrd; i++) {
+        double f1 = dx[i-1]/(dx[i-1]+dx[i]);
+        double f0 = 1.0-f1;
+        density_f[i] = density[i-1]*f0 + density[i] * f1;
+        T_f[i]       = T[i-1]      *f0 + T[i]       * f1;
+        tcond_f[i]   = tcond[i-1]  *f0 + tcond[i]   * f1;
+        M_f[i]       = M[i-1]      *f0 + M[i]       * f1;
+        for(int k=0; k<nsp; k++) {
+            D_f[i][k] = D[i-1][k]*f0 + D[i][k]*f1;
+            y_f[i][k] = y[i-1][k]*f0 + y[i][k]*f1;
+        }
+    }
 
-//    for(int i=1; i<ngrd; i++) {
-//        double f1 = dx[i-1]/(dx[i-1]+dx[i]);
-//        double f0 = 1.0-f1;
-//        density_f[i] = density[i-1]*f0 + density[i]*f1;
-//        tcond_f[i] = tcond[i-1]*f0 + tcond[i]*f1;
-//        D_f[i] = D[i-1]*f0 + D[i]*f1;
-//        T_f[i] = T[i-1]*f0 + T[i]*f1;
-//    }
+    //---------- fluxes y
 
-//    //---------- fluxes y
+    double jstar;             // correction flux so that all fluxes sum to zero. This is equal to using a correction velocity
+                              // j_i_corrected = j_i - Yi*jstar; jstar = sum(j_i).
 
-//    for(int k=0; k<nsp; k++) {
-//        flux_y[0][k]    = -density_f[0]    *D_f[0]    *(y[0][k]-yLbc[k])     *2/dx[0];
-//        flux_y[ngrd][k] = -density_f.back()*D_f.back()*(yRbc[k]-y[ngrd-1][k])*2/dx.back();
-//        for(int i=1; i<ngrd; i++)
-//            flux_y[i][k] = -density_f[i]*D_f[i]*(y[i][k]-y[i-1][k])*2/(dx[i-1]+dx[i]);
-//    }
+    for (int i=1; i<ngrd; i++) {
+        jstar = 0.0;
+        for(int k=0; k<nsp; k++) {
+            flux_y[i][k] = -density_f[i]*D_f[i][k]*(y[i][k]-y[i-1][k])*2/(dx[i-1]+dx[i])\
+                           -density_f[i]*D_f[i][k]*y_f[i][k]*(M[i]-M[i-1])*2/(dx[i-1]+dx[i])/M_f[i];
+            jstar += flux_y[i][k];
+        }
+        for(int k=0; k<nsp; k++) {
+            flux_y[i][k] -= y_f[i][k]*jstar;
+        }
+    }
+    //--------- Boundary faces
+    //Left boundary
+    jstar = 0.0;
+    for(int k=0; k<nsp; k++) {
+        flux_y[0][k]    = -density_f[0]    *D_f[0][k]    *(y[0][k]-yLbc[k])     *2/dx[0]\
+                          -density_f[0]    *D_f[0][k]    *y_f[0][k]    *(M[0]-M_f[0])         *2/dx[0];
+        jstar += flux_y[0][k];
+    }	
+    for(int k=0; k<nsp; k++) {
+        flux_y[0][k] -= y_f[0][k]*jstar;
+    }
+    //Right boundary
+    jstar = 0.0;
+    for(int k=0; k<nsp; k++) {
+        flux_y[ngrd][k] = -density_f.back()*D_f.back()[k]*(yRbc[k]-y[ngrd-1][k])*2/dx.back()\
+                          -density_f.back()*D_f.back()[k]*y_f.back()[k]*(M_f.back()-M[ngrd-1])*2/dx.back();
+        jstar += flux_y[ngrd][k];
+    }
+    for(int k=0; k<nsp; k++) {
+        flux_y[ngrd][k] -= y_f[ngrd][k]*jstar;
+    }
 
-//    //---------- fluxes h
+    //---------- fluxes h
 
-//    flux_h[0]     = -tcond_f[0]*(T[0]-TLbc)*2/dx[0];
-//    flux_h.back() = -tcond_f.back()*(TRbc-T.back())*2/dx.back(); 
-//    for(int i=1; i<ngrd; i++)
-//        flux_h[i] = -tcond_f[i]*(T[i]-T[i-1])*2/(dx[i-1]+dx[i]);
+    flux_h[0]     = -tcond_f[0]*(T[0]-TLbc)*2/dx[0];
+    flux_h.back() = -tcond_f.back()*(TRbc-T.back())*2/dx.back(); 
+    for(int i=1; i<ngrd; i++)
+        flux_h[i] = -tcond_f[i]*(T[i]-T[i-1])*2/(dx[i-1]+dx[i]);
 
-//    vector<double> hsp(nsp);
+    vector<double> hsp(nsp);
 
-//    gas->setState_TPY(TLbc, P, &yLbc[0]);
-//    gas->getEnthalpy_RT(&hsp[0]);
-//    for(size_t k=0; k<nsp; k++)
-//        flux_h[0] += flux_y[0][k]*hsp[k]*TLbc*Cantera::GasConstant/gas->molecularWeight(k);
+    gas->setState_TPY(TLbc, P, &yLbc[0]);
+    gas->getEnthalpy_RT(&hsp[0]);
+    for(size_t k=0; k<nsp; k++)
+        flux_h[0] += flux_y[0][k]*hsp[k]*TLbc*Cantera::GasConstant/gas->molecularWeight(k);
 
-//    gas->setState_TPY(TRbc, P, &yRbc[0]);
-//    gas->getEnthalpy_RT(&hsp[0]);
-//    for(size_t k=0; k<nsp; k++)
-//        flux_h.back() += flux_y.back()[k]*hsp[k]*TRbc*Cantera::GasConstant/gas->molecularWeight(k);
+    gas->setState_TPY(TRbc, P, &yRbc[0]);
+    gas->getEnthalpy_RT(&hsp[0]);
+    for(size_t k=0; k<nsp; k++)
+        flux_h.back() += flux_y.back()[k]*hsp[k]*TRbc*Cantera::GasConstant/gas->molecularWeight(k);
 
-//    for(size_t i=1; i<ngrd; i++) {
-//        gas->setState_TP(T_f[i], P);        // hsp depends on T but not on y
-//        gas->getEnthalpy_RT(&hsp[0]);
-//        for(size_t k=0; k<nsp; k++)
-//            flux_h[i] += flux_y[i][k]*hsp[k]*T_f[i]*Cantera::GasConstant/gas->molecularWeight(k);
-//    }
-//}}}}
+    for(size_t i=1; i<ngrd; i++) {
+        gas->setState_TP(T_f[i], P);        // hsp depends on T but not on y
+        gas->getEnthalpy_RT(&hsp[0]);
+        for(size_t k=0; k<nsp; k++)
+            flux_h[i] += flux_y[i][k]*hsp[k]*T_f[i]*Cantera::GasConstant/gas->molecularWeight(k);
+    }
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 // assumes y, T are initialized
@@ -481,6 +522,7 @@ int flame::Func(const double *vars, double *F) {
     //------------ set function values
 
     setFluxes();
+    //setFluxesUnity();
 
     vector<double> Q(ngrd);
     if(LdoRadiation) setQrad(Q);
@@ -630,6 +672,7 @@ int flame::rhsf(const double *vars, double *dvarsdt) {
 //------------ set rates dvarsdt (dvars/dt)
 
     setFluxes();
+    //setFluxesUnity();
 
     vector<double> rr(nsp);
     vector<double> Q(ngrd);
