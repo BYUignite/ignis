@@ -310,18 +310,43 @@ void flame::setFluxesUnity() {
     //---------- fluxes y
 
     for(int k=0; k<nsp; k++) {
-        flux_y[0][k]    = -density_f[0]    *D_f[0]    *(y[0][k]-yLbc[k])     *2/dx[0];
-        flux_y[ngrd][k] = -density_f.back()*D_f.back()*(yRbc[k]-y[ngrd-1][k])*2/dx.back();
-        for(int i=1; i<ngrd; i++)
+        if(LisPremixed) {
+            flux_y[0][k]    = mflux * yLbc[k];
+            flux_y[ngrd][k] = mflux * y[ngrd-1][k];
+        }
+        else {
+            flux_y[0][k]    = -density_f[0]    *D_f[0]    *(y[0][k]-yLbc[k])     *2/dx[0];
+            flux_y[ngrd][k] = -density_f.back()*D_f.back()*(yRbc[k]-y[ngrd-1][k])*2/dx.back();
+        }
+        for(int i=1; i<ngrd; i++) {
             flux_y[i][k] = -density_f[i]*D_f[i]*(y[i][k]-y[i-1][k])*2/(dx[i-1]+dx[i]);
+            if(LisPremixed) flux_y[i][k] += mflux*y[i-1][k];
+        }
     }
 
     //---------- fluxes h
 
-    flux_h[0]     = -density_f[0]*D_f[0]*(h[0]-hLbc)*2/dx[0];
-    flux_h.back() = -density_f.back()*D_f.back()*(hRbc-h.back())*2/dx.back(); 
-    for(int i=1; i<ngrd; i++)
+    for(int i=1; i<ngrd; i++) {
         flux_h[i] = -density_f[i]*D_f[i]*(h[i]-h[i-1])*2/(dx[i-1]+dx[i]);
+        if(LisPremixed) flux_h[i] += mflux*h[i-1];
+    }
+    if(!LisPremixed) {
+        flux_h.back() = -density_f.back()*D_f.back()*(hRbc-h.back())*2/dx.back(); 
+        flux_h[0]     = -density_f[0]*D_f[0]*(h[0]-hLbc)*2/dx[0];
+    }
+    else {
+        flux_h.back() = mflux*h[ngrd-1];
+
+        flux_h[0] = 0.0;
+        vector<double> hsp(nsp);                     // J/kg species i
+        gas->getEnthalpy_RT(&hsp[0]);                // (hhat/RT) where hhat = J/kmol
+        for(size_t k=0; k<nsp; k++){                  // --> hsp = J/kg species i
+            hsp[k] *= TLbc*Cantera::GasConstant/gas->molecularWeight(k);
+            flux_h[0] += hsp[k]*flux_y[0][k];
+        }
+        gas->setState_TPY(TLbc, P, &yLbc[0]);
+        flux_h[0] -= trn->thermalConductivity() * (T[1]-TLbc)/(dx[0]*0.5);
+    }
 }
 
 //////////////////////////////////////////////////////////////////////////////////
@@ -521,8 +546,8 @@ int flame::Func(const double *vars, double *F) {
 
     //------------ set function values
 
-    setFluxes();
-    //setFluxesUnity();
+    //setFluxes();
+    setFluxesUnity();
 
     vector<double> Q(ngrd);
     if(LdoRadiation) setQrad(Q);
@@ -671,8 +696,8 @@ int flame::rhsf(const double *vars, double *dvarsdt) {
     }
 //------------ set rates dvarsdt (dvars/dt)
 
-    setFluxes();
-    //setFluxesUnity();
+    //setFluxes();
+    setFluxesUnity();
 
     vector<double> rr(nsp);
     vector<double> Q(ngrd);
@@ -692,16 +717,12 @@ int flame::rhsf(const double *vars, double *dvarsdt) {
         gas->getEnthalpy_RT(&hsp[0]);                // (hhat/RT) where hhat = J/kmol
         for(size_t k=0; k<nsp; k++)                  // --> hsp = J/kg species i
             hsp[k] *= T[i]*Cantera::GasConstant/gas->molecularWeight(k);
-        double sum_hmdot = 0.0;
-        double sum_hjejw = 0.0;
-        for(size_t k=0; k<nsp; k++) {
-            sum_hmdot += hsp[k]*rr[k]*gas->molecularWeight(k);
-            sum_hjejw -= hsp[k]*(flux_y[i+1][k] - flux_y[i][k]);
-        }
-        dvarsdt[Ia(i,nvar-1)] = (sum_hmdot + sum_hjejw/dx[i] - (flux_h[i+1] - flux_h[i])/dx[i] ) /
-                                (rho*cp) / Tscale;
-
-        if(LdoRadiation) dvarsdt[Ia(i,nvar-1)] += Q[i]/(rho*cp)/Tscale;
+        double sum_hkdykdt = 0.0;
+        for(size_t k=0; k<nsp; k++)
+            sum_hkdykdt += hsp[k]*dvarsdt[Ia(i,k)];
+        dvarsdt[Ia(i,nvar-1)]  =  -(flux_h[i+1] - flux_h[i])/(rho*cp*dx[i]) - sum_hkdykdt/cp;
+        if(LdoRadiation) dvarsdt[Ia(i,nvar-1)] += Q[i]/(rho*cp);
+        dvarsdt[Ia(i,nvar-1)] /= Tscale;
     }
 
     //-------------

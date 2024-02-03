@@ -59,6 +59,9 @@ public:
     std::vector<std::vector<double> > flux_y;      // flux_y[I(igrid, ksp)]
     std::vector<double>               flux_h;      // flux_h[igrid]
 
+    bool LisPremixed = false;
+    double mflux = 0.0;
+
     ////////////////////// member functions
 
     void setIC(std::string icType, std::string fname="");
