@@ -6,6 +6,7 @@
 #include "cantera/transport.h"
 #include "streams.h"
 #include "rad_planck_mean.h"
+#include "linearInterp.h"
 
 #include <vector>
 #include <memory>
@@ -50,7 +51,7 @@ public:
 
     std::shared_ptr<streams> strm;
     rad     *planckmean;
-    bool    LdoRadiation;
+    bool    doRadiation;
 
     double Ttarget;
     double dT;
@@ -59,8 +60,13 @@ public:
     std::vector<std::vector<double> > flux_y;      // flux_y[I(igrid, ksp)]
     std::vector<double>               flux_h;      // flux_h[igrid]
 
-    bool LisPremixed = false;
+    bool   isPremixed = false;
     double mflux = 0.0;
+
+    bool doEnergyEqn = true;
+    std::shared_ptr<linearInterp> LI;
+    std::vector<double> Tprof_h;
+    std::vector<double> Tprof_T;
 
     ////////////////////// member functions
 
@@ -75,13 +81,19 @@ public:
     int  Func(const double *vars, double *F);
     int  rhsf(const double *vars, double *dvarsdt);
     void setQrad(std::vector<double> &Q);
+    void setTprof(const std::vector<double> &_Tprof_h, const std::vector<double> &_Tprof_T) {
+        Tprof_h = _Tprof_h;
+        Tprof_T = _Tprof_T;
+        LI = std::make_shared<linearInterp>(Tprof_h, Tprof_T);
+    }
 
     size_t I( size_t i, size_t k) { return i*nsp  + k; }     // y[I(i,k)] in 1D --> y[i,k] in 2D
     size_t Ia(size_t i, size_t k) { return i*nvar + k; }     // for indexing combined (a for all) vars
 
     ////////////////////// constructors 
 
-    flame(const bool _LisPremixed, const size_t _ngrd, const double _L, const double _P,
+    flame(const bool _isPremixed, const bool _doEnergyEqn, 
+          const size_t _ngrd, const double _L, const double _P,
           std::shared_ptr<Cantera::Solution> csol,
           const std::vector<double> &_yLbc, const std::vector<double> &_yRbc, 
           const double _TLbc, const double _TRbc);

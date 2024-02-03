@@ -1,5 +1,6 @@
 #include "flame.h"
 #include "cantera/base/Solution.h"
+#include "yaml-cpp/yaml.h"
 
 #include <iostream>
 #include <sstream>
@@ -13,49 +14,61 @@ using namespace std;
 
 int main() {
     
-    //auto csol = Cantera::newSolution("c2h4red.yaml");
     auto csol = Cantera::newSolution("gri30.yaml");
     auto gas  = csol->thermo();
 
-    size_t ngrd = 100;
-    double L = 0.05;
-    double P = 101325;
+    //---------------------
 
-    double TLbc = 298.0;
-    vector<double> yLbc(gas->nSpecies());
-    yLbc[gas->speciesIndex("C2H4")] = 0.1408;    // phi = 2.34
-    yLbc[gas->speciesIndex("O2")]  = 0.1805;
-    yLbc[gas->speciesIndex("N2")]  = 0.6787;
+    YAML::Node inputFile = YAML::LoadFile("../input.yaml");
 
-    gas->setState_TPY(TLbc, P, &yLbc[0]);
-    double rho = gas->density();                  // kg/m3
-    double v   = 0.0673;                         // m/s
-    double mflux = rho*v;                        // kg/m2*s
+    size_t ngrd = inputFile["ngrd"].as<size_t>();
+    double L = inputFile["L"].as<double>();
+    double nTauRun = inputFile["nTauRun"].as<double>();
+    size_t nSteps = inputFile["nSteps"].as<size_t>();
 
-    double TRbc = TLbc;
-    vector<double> yRbc = yLbc;
+    bool   isPremixed  = inputFile["isPremixed"].as<bool>();
+    bool   doRadiation = inputFile["doRadiation"].as<bool>();
 
-    bool LisPremixed = true;
+    size_t P = inputFile["P"].as<double>();
+    double v = inputFile["LBC"]["v"].as<double>();
+    double TLbc = inputFile["LBC"]["TLbc"].as<double>();
+    vector<double> xLbc(gas->nSpecies());
+    YAML::Node xx = inputFile["LBC"]["comp"];
+    for(auto it=xx.begin(); it!=xx.end(); it++)
+        xLbc[gas->speciesIndex(it->first.as<string>())] = it->second.as<double>();
 
-    flame flm(LisPremixed, ngrd, L, P, csol,
-              yLbc, yRbc, TLbc, TRbc);
+    bool doEnergyEqn = inputFile["doEnergyEqn"].as<bool>();
+    vector<double> Tprof_h;
+    vector<double> Tprof_T;
+    if(!doEnergyEqn) {
+        for(size_t i=0; i<inputFile["Tprof"].size(); i++) {
+            Tprof_h.push_back(inputFile["Tprof"][i][0].as<double>());
+            Tprof_T.push_back(inputFile["Tprof"][i][1].as<double>());
+        }
+    }
 
+    //---------------------
+
+    gas->setState_TPX(TLbc, P, &xLbc[0]);
+    vector<double> yLbc(ngrd);
+    gas->getMassFractions(&yLbc[0]);
+    double mflux = gas->density()*v;
+
+    flame flm(isPremixed, doEnergyEqn, ngrd, L, P, csol,
+              yLbc, yLbc, TLbc, TLbc);
     flm.mflux = mflux;
+    if(!doEnergyEqn) flm.setTprof(Tprof_h, Tprof_T);
 
     flm.setIC("premixed");
     flm.writeFile("IC.dat");
 
-    //---------------
+    //---------------------
 
-    double nTauRun = 5.0;
-    int    nsteps  = 50;
-
-    flm.solveUnsteady(nTauRun, nsteps, false);
+    flm.solveUnsteady(nTauRun, nSteps, false);
     string fname = "premixed.dat";
     flm.writeFile(fname);
 
-    //---------------
-
+    //---------------------
 
     return 0;
 }

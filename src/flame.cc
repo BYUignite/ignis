@@ -18,11 +18,14 @@ int rhsf_cvode(realtype t, N_Vector varsCV, N_Vector dvarsdtCV, void *user_data)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-flame::flame(const bool _LisPremixed, const size_t _ngrd, const double _L, double _P, 
+flame::flame(const bool _isPremixed, 
+             const bool _doEnergyEqn,
+             const size_t _ngrd, const double _L, double _P, 
              shared_ptr<Cantera::Solution> csol,
              const vector<double> &_yLbc, const vector<double> &_yRbc, 
              const double _TLbc, const double _TRbc) :
-    LisPremixed(_LisPremixed),
+    isPremixed(_isPremixed),
+    doEnergyEqn(_doEnergyEqn),
     ngrd(_ngrd),
     L(_L),
     P(_P),
@@ -52,10 +55,11 @@ flame::flame(const bool _LisPremixed, const size_t _ngrd, const double _L, doubl
 
     gas->setState_TPY(TLbc, P, &yLbc[0]);
     hLbc = gas->enthalpy_mass();
+
     gas->setState_TPY(TRbc, P, &yRbc[0]);
     hRbc = gas->enthalpy_mass();
 
-    if(!LisPremixed) strm = make_shared<streams>(csol, P, hLbc, hRbc, yLbc, yRbc);
+    if(!isPremixed) strm = make_shared<streams>(csol, P, hLbc, hRbc, yLbc, yRbc);
 
     hscale = max(abs(hLbc), abs(hRbc));
     Tscale = 2500;
@@ -67,12 +71,12 @@ flame::flame(const bool _LisPremixed, const size_t _ngrd, const double _L, doubl
 
     //---------- radiation object
 
-    LdoRadiation = false;
-    planckmean = new rad_planck_mean();
+    doRadiation = false;
+    planckmean  = new rad_planck_mean();
 
     Ttarget = 0.0;
-
 }
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void flame::setGrid(double _L) {
@@ -81,7 +85,7 @@ void flame::setGrid(double _L) {
     dx = vector<double>(ngrd, L/ngrd);
     x.resize(ngrd);
 
-    if(LisPremixed) {       //----------- uniform grid
+    if(isPremixed) {       //----------- uniform grid
         x[0] = dx[0]/2;
         for (size_t i=1; i<ngrd; i++)
             x[i] = x[i-1] + (dx[i-1]+dx[i])/2;
@@ -115,7 +119,7 @@ void flame::writeFile(string fname) {
     vector<double> mixf;
     double mixfLbc;
     double mixfRbc;
-    if(!LisPremixed) {
+    if(!isPremixed) {
         mixf.resize(ngrd);
         for(int i=0; i<ngrd; i++)
             mixf[i] = strm->getMixtureFraction(&y[i][0]);
@@ -149,7 +153,7 @@ void flame::writeFile(string fname) {
     ofile << "#";
     int j=1;
     ofile << setw(15) << "00" << j++ << "_x";
-    if(!LisPremixed) ofile << setw(13) << "00" << j++ << "_mixf";
+    if(!isPremixed) ofile << setw(13) << "00" << j++ << "_mixf";
     ofile << setw(16) << "00" << j++ << "_T";
     ofile << setw(16) << "00" << j++ << "_h";
     ofile << setw(10) << "00" << j++ << "_density";
@@ -163,7 +167,7 @@ void flame::writeFile(string fname) {
 
     ofile << endl;
     ofile << setw(19) << 0;
-    if(!LisPremixed) ofile << setw(19) << mixfLbc;
+    if(!isPremixed) ofile << setw(19) << mixfLbc;
     ofile << setw(19) << TLbc;
     ofile << setw(19) << hLbc;
     ofile << setw(19) << rhoLbc;
@@ -173,7 +177,7 @@ void flame::writeFile(string fname) {
     for(int i=0; i<ngrd; i++) {
         ofile << endl;
         ofile << setw(19) << x[i];
-        if(!LisPremixed) ofile << setw(19) << mixf[i];
+        if(!isPremixed) ofile << setw(19) << mixf[i];
         ofile << setw(19) << T[i];
         ofile << setw(19) << h[i];
         ofile << setw(19) << rho[i];
@@ -181,7 +185,7 @@ void flame::writeFile(string fname) {
             ofile << setw(19) << y[i][k];
     }
 
-    if(LisPremixed) {
+    if(isPremixed) {
         ofile << endl;
         ofile << setw(19) << L;
         ofile << setw(19) << T.back();
@@ -228,7 +232,7 @@ void flame::setIC(std::string icType, string fname) {
             double h = hLbc + x[i]/L*(hRbc-hLbc);
             gas->setMassFractions(&y[i][0]);
             gas->setState_HP(h,P);
-            T[i] = gas->temperature();
+            T[i] = doEnergyEqn ? gas->temperature() : LI->interp(x[i]);
         }
     }
 
@@ -240,7 +244,7 @@ void flame::setIC(std::string icType, string fname) {
             gas->setState_TPY(T[i], P, &y[i][0]);
             gas->equilibrate("HP");
             gas->getMassFractions(&y[i][0]);
-            T[i] = gas->temperature();
+            T[i] = doEnergyEqn ? gas->temperature() : LI->interp(x[i]);   // redundante
         }
     }
 
@@ -255,12 +259,22 @@ void flame::setIC(std::string icType, string fname) {
     //-------------------
 
     else if (icType == "premixed") {
-        gas->setMassFractions(&yLbc[0]);
-        gas->setState_HP(hLbc,P);
-        gas->equilibrate("HP");
-        for(int i=0; i<ngrd; i++) {
-            gas->getMassFractions(&y[i][0]);
-            T[i] = gas->temperature();
+        if(doEnergyEqn) {
+            gas->setMassFractions(&yLbc[0]);
+            gas->setState_HP(hLbc,P);
+            gas->equilibrate("HP");
+            for(int i=0; i<ngrd; i++) {
+                gas->getMassFractions(&y[i][0]);
+                T[i] = gas->temperature();
+            }
+        }
+        else {
+            for(int i=0; i<ngrd; i++) {
+                gas->setState_TPY(LI->interp(x[i]), P, &yLbc[0]);
+                gas->equilibrate("TP");
+                gas->getMassFractions(&y[i][0]);
+                T[i] = gas->temperature();
+            }
         }
     }
 
@@ -341,7 +355,7 @@ void flame::setFluxesUnity() {
     //---------- fluxes y
 
     for(int k=0; k<nsp; k++) {
-        if(LisPremixed) {
+        if(isPremixed) {
             flux_y[0][k]    = mflux * yLbc[k];
             flux_y[ngrd][k] = mflux * y[ngrd-1][k];
         }
@@ -351,7 +365,7 @@ void flame::setFluxesUnity() {
         }
         for(int i=1; i<ngrd; i++) {
             flux_y[i][k] = -density_f[i]*D_f[i]*(y[i][k]-y[i-1][k])*2/(dx[i-1]+dx[i]);
-            if(LisPremixed) flux_y[i][k] += mflux*y[i-1][k];
+            if(isPremixed) flux_y[i][k] += mflux*y[i-1][k];
         }
     }
 
@@ -359,9 +373,9 @@ void flame::setFluxesUnity() {
 
     for(int i=1; i<ngrd; i++) {
         flux_h[i] = -density_f[i]*D_f[i]*(h[i]-h[i-1])*2/(dx[i-1]+dx[i]);
-        if(LisPremixed) flux_h[i] += mflux*h[i-1];
+        if(isPremixed) flux_h[i] += mflux*h[i-1];
     }
-    if(!LisPremixed) {
+    if(!isPremixed) {
         flux_h.back() = -density_f.back()*D_f.back()*(hRbc-h.back())*2/dx.back(); 
         flux_h[0]     = -density_f[0]*D_f[0]*(h[0]-hLbc)*2/dx[0];
     }
@@ -581,7 +595,7 @@ int flame::Func(const double *vars, double *F) {
     setFluxesUnity();
 
     vector<double> Q(ngrd);
-    if(LdoRadiation) setQrad(Q);
+    if(doRadiation) setQrad(Q);
 
     vector<double> rr(nsp);
 
@@ -592,9 +606,12 @@ int flame::Func(const double *vars, double *F) {
         for(size_t k=0; k<nsp; k++)
             F[Ia(i,k)]  = flux_y[i+1][k] - flux_y[i][k]
                          - rr[k]*gas->molecularWeight(k)*dx[i];
-        F[Ia(i,nvar-1)] = (flux_h[i+1] - flux_h[i])/hscale; // dolh comment to remove h
-
-        if(LdoRadiation) F[Ia(i,nvar-1)] -= Q[i]/hscale;
+        if(doEnergyEqn) {
+            F[Ia(i,nvar-1)] = (flux_h[i+1] - flux_h[i])/hscale; // dolh comment to remove h
+            if(doRadiation) F[Ia(i,nvar-1)] -= Q[i]/hscale;
+        }
+        else
+            F[Ia(i,nvar-1)] = 0.0; // dolh comment to remove h
     }
 
     //------------ augment for homotopy
@@ -656,7 +673,7 @@ void flame::setQrad(vector<double> &Q) {
 // Default is in time --> Tmin, Tmax are zero --> dT = 0
 // Lwrite = true (default) --> write in time;
 
-void flame::solveUnsteady(double nTauRun, int nsteps, bool LwriteTime, double Tmin, double Tmax) {
+void flame::solveUnsteady(double nTauRun, int nSteps, bool LwriteTime, double Tmin, double Tmax) {
 
     //---------- transfer variables into single array
 
@@ -686,14 +703,14 @@ void flame::solveUnsteady(double nTauRun, int nsteps, bool LwriteTime, double Tm
 
     double D = 0.00035;                                   // avg thermal diffusivity
     double t = 0.0;
-    if(LisPremixed) gas->setState_TPY(TLbc, P, &yLbc[0]); // needed fro density in tend
-    double tend = nTauRun * (LisPremixed ? L/(mflux/gas->density()) : L*L/D);
-    double dt = tend/nsteps;
-    dT = Tmax==Tmin ? 0.0 : (Tmax-(Tmin+0.1))/nsteps;
+    if(isPremixed) gas->setState_TPY(TLbc, P, &yLbc[0]); // needed fro density in tend
+    double tend = nTauRun * (isPremixed ? L/(mflux/gas->density()) : L*L/D);
+    double dt = tend/nSteps;
+    dT = Tmax==Tmin ? 0.0 : (Tmax-(Tmin+0.1))/nSteps;
     Ttarget = Tmax - dT;
     isave = 1;
 
-    for(int istep=1; istep<=nsteps; istep++, t+=dt) {
+    for(int istep=1; istep<=nSteps; istep++, t+=dt) {
 
         integ.integrate(vars, dt);
 
@@ -733,7 +750,7 @@ int flame::rhsf(const double *vars, double *dvarsdt) {
 
     vector<double> rr(nsp);
     vector<double> Q(ngrd);
-    if(LdoRadiation) setQrad(Q);
+    if(doRadiation) setQrad(Q);
 
     for(size_t i=0; i<ngrd; i++) {
         gas->setMassFractions_NoNorm(&y[i][0]);
@@ -744,17 +761,21 @@ int flame::rhsf(const double *vars, double *dvarsdt) {
             dvarsdt[Ia(i,k)]  = -(flux_y[i+1][k] - flux_y[i][k])/(rho*dx[i]) + 
                                 rr[k]*gas->molecularWeight(k)/rho;
 
-        double cp  = gas->cp_mass();
-        vector<double> hsp(nsp);                     // J/kg species i
-        gas->getEnthalpy_RT(&hsp[0]);                // (hhat/RT) where hhat = J/kmol
-        for(size_t k=0; k<nsp; k++)                  // --> hsp = J/kg species i
-            hsp[k] *= T[i]*Cantera::GasConstant/gas->molecularWeight(k);
-        double sum_hkdykdt = 0.0;
-        for(size_t k=0; k<nsp; k++)
-            sum_hkdykdt += hsp[k]*dvarsdt[Ia(i,k)];
-        dvarsdt[Ia(i,nvar-1)]  =  -(flux_h[i+1] - flux_h[i])/(rho*cp*dx[i]) - sum_hkdykdt/cp;
-        if(LdoRadiation) dvarsdt[Ia(i,nvar-1)] += Q[i]/(rho*cp);
-        dvarsdt[Ia(i,nvar-1)] /= Tscale;
+        if(doEnergyEqn) {
+            double cp  = gas->cp_mass();
+            vector<double> hsp(nsp);                     // J/kg species i
+            gas->getEnthalpy_RT(&hsp[0]);                // (hhat/RT) where hhat = J/kmol
+            for(size_t k=0; k<nsp; k++)                  // --> hsp = J/kg species i
+                hsp[k] *= T[i]*Cantera::GasConstant/gas->molecularWeight(k);
+            double sum_hkdykdt = 0.0;
+            for(size_t k=0; k<nsp; k++)
+                sum_hkdykdt += hsp[k]*dvarsdt[Ia(i,k)];
+            dvarsdt[Ia(i,nvar-1)]  =  -(flux_h[i+1] - flux_h[i])/(rho*cp*dx[i]) - sum_hkdykdt/cp;
+            if(doRadiation) dvarsdt[Ia(i,nvar-1)] += Q[i]/(rho*cp);
+            dvarsdt[Ia(i,nvar-1)] /= Tscale;
+        }
+        else
+            dvarsdt[Ia(i,nvar-1)] = 0.0;
     }
 
     //-------------

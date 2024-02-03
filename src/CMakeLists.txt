@@ -9,7 +9,8 @@ else()
     find_library(CANTERA cantera_shared HINTS "/usr/local/cantera/lib/")
 endif()
 
-#find_library(YAML yaml-cpp)
+find_library(YAML yaml-cpp)
+
 find_library(KINSOL sundials_kinsol)
 find_library(CVODES sundials_cvodes)
 
