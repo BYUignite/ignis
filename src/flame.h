@@ -48,7 +48,7 @@ public:
     std::shared_ptr<Cantera::Kinetics>    kin;
     std::shared_ptr<Cantera::Transport>   trn;
 
-    streams strm;
+    std::shared_ptr<streams> strm;
     rad     *planckmean;
     bool    LdoRadiation;
 
@@ -81,7 +81,7 @@ public:
 
     ////////////////////// constructors 
 
-    flame(const size_t _ngrd, const double _L, const double _P,
+    flame(const bool _LisPremixed, const size_t _ngrd, const double _L, const double _P,
           std::shared_ptr<Cantera::Solution> csol,
           const std::vector<double> &_yLbc, const std::vector<double> &_yRbc, 
           const double _TLbc, const double _TRbc);

@@ -18,9 +18,11 @@ int rhsf_cvode(realtype t, N_Vector varsCV, N_Vector dvarsdtCV, void *user_data)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-flame::flame(const size_t _ngrd, const double _L, double _P, shared_ptr<Cantera::Solution> csol,
+flame::flame(const bool _LisPremixed, const size_t _ngrd, const double _L, double _P, 
+             shared_ptr<Cantera::Solution> csol,
              const vector<double> &_yLbc, const vector<double> &_yRbc, 
              const double _TLbc, const double _TRbc) :
+    LisPremixed(_LisPremixed),
     ngrd(_ngrd),
     L(_L),
     P(_P),
@@ -53,7 +55,7 @@ flame::flame(const size_t _ngrd, const double _L, double _P, shared_ptr<Cantera:
     gas->setState_TPY(TRbc, P, &yRbc[0]);
     hRbc = gas->enthalpy_mass();
 
-    strm = streams(csol, P, hLbc, hRbc, yLbc, yRbc);
+    if(!LisPremixed) strm = make_shared<streams>(csol, P, hLbc, hRbc, yLbc, yRbc);
 
     hscale = max(abs(hLbc), abs(hRbc));
     Tscale = 2500;
@@ -79,27 +81,29 @@ void flame::setGrid(double _L) {
     dx = vector<double>(ngrd, L/ngrd);
     x.resize(ngrd);
 
-    //--------- uniform grid
-    // x[0] = dx[0]/2;
-    // for (size_t i=1; i<ngrd; i++)
-    //     x[i] = x[i-1] + (dx[i-1]+dx[i])/2;
+    if(LisPremixed) {       //----------- uniform grid
+        x[0] = dx[0]/2;
+        for (size_t i=1; i<ngrd; i++)
+            x[i] = x[i-1] + (dx[i-1]+dx[i])/2;
+    }
+    else {                  //--------- segmented grid
 
-    //--------- segmented grid
-    double Lfrac = 0.2;         // first Lfrac fraction of the domain length
-    double Gfrac = 0.6;         // gets this Gfrac fraction of the grid points
-    int n1 = ngrd*Gfrac;
-    double dx1 = L*Lfrac/n1;
-    for(int i=0; i<n1; i++)
-        dx[i] = dx1;
+        double Lfrac = 0.2;         // first Lfrac fraction of the domain length
+        double Gfrac = 0.6;         // gets this Gfrac fraction of the grid points
+        int n1 = ngrd*Gfrac;
+        double dx1 = L*Lfrac/n1;
+        for(int i=0; i<n1; i++)
+            dx[i] = dx1;
 
-    int n2 = ngrd-n1;
-    double dx2 = L*(1.0-Lfrac)/n2;
-    for(int i=n1; i<ngrd; i++)
-        dx[i] = dx2;
+        int n2 = ngrd-n1;
+        double dx2 = L*(1.0-Lfrac)/n2;
+        for(int i=n1; i<ngrd; i++)
+            dx[i] = dx2;
 
-    x[0] = dx[0]/2;
-    for (size_t i=1; i<ngrd; i++)
-        x[i] = x[i-1] + (dx[i-1]+dx[i])/2;
+        x[0] = dx[0]/2;
+        for (size_t i=1; i<ngrd; i++)
+            x[i] = x[i-1] + (dx[i-1]+dx[i])/2;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -108,11 +112,16 @@ void flame::writeFile(string fname) {
 
     //-------------- compute auxiliary quantities
 
-    vector<double> mixf(ngrd, 0.0);
-    for(int i=0; i<ngrd; i++)
-        mixf[i] = strm.getMixtureFraction(&y[i][0]);
-    double mixfLbc = strm.getMixtureFraction(&yLbc[0]);
-    double mixfRbc = strm.getMixtureFraction(&yRbc[0]);
+    vector<double> mixf;
+    double mixfLbc;
+    double mixfRbc;
+    if(!LisPremixed) {
+        mixf.resize(ngrd);
+        for(int i=0; i<ngrd; i++)
+            mixf[i] = strm->getMixtureFraction(&y[i][0]);
+        mixfLbc = strm->getMixtureFraction(&yLbc[0]);
+        mixfRbc = strm->getMixtureFraction(&yRbc[0]);
+    }
 
     vector<double> rho(ngrd);
     vector<double> h(ngrd);
@@ -140,7 +149,7 @@ void flame::writeFile(string fname) {
     ofile << "#";
     int j=1;
     ofile << setw(15) << "00" << j++ << "_x";
-    ofile << setw(13) << "00" << j++ << "_mixf";
+    if(!LisPremixed) ofile << setw(13) << "00" << j++ << "_mixf";
     ofile << setw(16) << "00" << j++ << "_T";
     ofile << setw(16) << "00" << j++ << "_h";
     ofile << setw(10) << "00" << j++ << "_density";
@@ -154,7 +163,7 @@ void flame::writeFile(string fname) {
 
     ofile << endl;
     ofile << setw(19) << 0;
-    ofile << setw(19) << mixfLbc;
+    if(!LisPremixed) ofile << setw(19) << mixfLbc;
     ofile << setw(19) << TLbc;
     ofile << setw(19) << hLbc;
     ofile << setw(19) << rhoLbc;
@@ -164,7 +173,7 @@ void flame::writeFile(string fname) {
     for(int i=0; i<ngrd; i++) {
         ofile << endl;
         ofile << setw(19) << x[i];
-        ofile << setw(19) << mixf[i];
+        if(!LisPremixed) ofile << setw(19) << mixf[i];
         ofile << setw(19) << T[i];
         ofile << setw(19) << h[i];
         ofile << setw(19) << rho[i];
@@ -172,14 +181,25 @@ void flame::writeFile(string fname) {
             ofile << setw(19) << y[i][k];
     }
 
-    ofile << endl;
-    ofile << setw(19) << L;
-    ofile << setw(19) << mixfRbc;
-    ofile << setw(19) << TRbc;
-    ofile << setw(19) << hRbc;
-    ofile << setw(19) << rhoRbc;
-    for(int k=0; k<nsp; k++)
-        ofile << setw(19) << yRbc[k];
+    if(LisPremixed) {
+        ofile << endl;
+        ofile << setw(19) << L;
+        ofile << setw(19) << T.back();
+        ofile << setw(19) << h.back();
+        ofile << setw(19) << rho.back();
+        for(int k=0; k<nsp; k++)
+            ofile << setw(19) << y.back()[k]; 
+    }
+    else {
+        ofile << endl;
+        ofile << setw(19) << L;
+        ofile << setw(19) << mixfRbc;
+        ofile << setw(19) << TRbc;
+        ofile << setw(19) << hRbc;
+        ofile << setw(19) << rhoRbc;
+        for(int k=0; k<nsp; k++)
+            ofile << setw(19) << yRbc[k];
+    }
 
     ofile.close();
 }
@@ -196,9 +216,6 @@ void flame::storeState() {
 ////////////////////////////////////////////////////////////////////////////////
 
 void flame::setIC(std::string icType, string fname) {
-
-
-    //-------------------
 
     if (icType == "linear") {
         gas->setState_TPY(TLbc, P, &yLbc[0]);
@@ -227,10 +244,24 @@ void flame::setIC(std::string icType, string fname) {
         }
     }
 
+    //-------------------
+
     else if (icType == "stored") {
         P = Pstore;
         y = ystore;
         T = Tstore;
+    }
+
+    //-------------------
+
+    else if (icType == "premixed") {
+        gas->setMassFractions(&yLbc[0]);
+        gas->setState_HP(hLbc,P);
+        gas->equilibrate("HP");
+        for(int i=0; i<ngrd; i++) {
+            gas->getMassFractions(&y[i][0]);
+            T[i] = gas->temperature();
+        }
     }
 
     //-------------------
@@ -653,9 +684,10 @@ void flame::solveUnsteady(double nTauRun, int nsteps, bool LwriteTime, double Tm
 
     //---------- solve
 
-    double D = 0.00035;     // avg thermal diffusivity
+    double D = 0.00035;                                   // avg thermal diffusivity
     double t = 0.0;
-    double tend = nTauRun*L*L/D;
+    if(LisPremixed) gas->setState_TPY(TLbc, P, &yLbc[0]); // needed fro density in tend
+    double tend = nTauRun * (LisPremixed ? L/(mflux/gas->density()) : L*L/D);
     double dt = tend/nsteps;
     dT = Tmax==Tmin ? 0.0 : (Tmax-(Tmin+0.1))/nsteps;
     Ttarget = Tmax - dT;

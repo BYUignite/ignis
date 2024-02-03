@@ -17,80 +17,45 @@ int main() {
     auto csol = Cantera::newSolution("gri30.yaml");
     auto gas  = csol->thermo();
 
-    size_t ngrd = 40;
-    double L = 0.1;
+    size_t ngrd = 100;
+    double L = 0.05;
     double P = 101325;
 
-    double TLbc = 300.0;
+    double TLbc = 298.0;
     vector<double> yLbc(gas->nSpecies());
-    yLbc[gas->speciesIndex("O2")] = 0.233;
-    yLbc[gas->speciesIndex("N2")] = 0.767;
+    yLbc[gas->speciesIndex("C2H4")] = 0.1408;    // phi = 2.34
+    yLbc[gas->speciesIndex("O2")]  = 0.1805;
+    yLbc[gas->speciesIndex("N2")]  = 0.6787;
 
-    double TRbc = 300.0;
-    vector<double> yRbc(gas->nSpecies());
-    yRbc[gas->speciesIndex("CH4")] = 1;
+    gas->setState_TPY(TLbc, P, &yLbc[0]);
+    double rho = gas->density();                  // kg/m3
+    double v   = 0.0673;                         // m/s
+    double mflux = rho*v;                        // kg/m2*s
 
-    flame flm(ngrd, L, P, csol,
+    double TRbc = TLbc;
+    vector<double> yRbc = yLbc;
+
+    bool LisPremixed = true;
+
+    flame flm(LisPremixed, ngrd, L, P, csol,
               yLbc, yRbc, TLbc, TRbc);
 
-    flm.setIC("equilibrium");
-    flm.storeState();
+    flm.mflux = mflux;
+
+    flm.setIC("premixed");
     flm.writeFile("IC.dat");
 
     //---------------
 
-    double nTauSS     = 5;
-    int    nsaveSS    = 1;
-    double nTauU      = 5;
-    int    nsaveU     = 10;
+    double nTauRun = 5.0;
+    int    nsteps  = 50;
 
-    vector<double> Ls = {0.2, 0.04, 0.02, 0.008, 0.006, 0.004, 0.002};
-    
-    double Tmin, Tmax;
+    flm.solveUnsteady(nTauRun, nsteps, false);
+    string fname = "premixed.dat";
+    flm.writeFile(fname);
 
-    for(int i=0; i<Ls.size(); i++) {
-        L = Ls[i];
+    //---------------
 
-        //----- do SS solution
-
-        Tmax = *max_element(flm.T.begin(), flm.T.end());
-        flm.setGrid(L); cout << "\n\nL = " << flm.L << endl;
-        cout << endl << "do SS"; cout.flush();
-        flm.LdoRadiation = false;
-        flm.solveUnsteady(nTauSS, nsaveSS, false);
-
-        //----- if blows out, rerun, store as it blows out, else run unsteady with heat loss
-
-        if(*max_element(flm.T.begin(), flm.T.end()) < 1.05*min(TLbc, TRbc)) {
-            cout << endl << "Extinction for L=" << flm.L << endl;
-            Tmin = *max_element(flm.T.begin(), flm.T.end());
-            flm.setIC("stored");
-            flm.solveUnsteady(nTauU,  nsaveU, false, Tmin, Tmax);
-        }
-
-        else {
-            stringstream ss; ss << "L_" << L << "S_" << setfill('0') << setw(3) << 0 << ".dat";
-            string fname = ss.str();
-            flm.writeFile(fname);
-
-            Tmax = *max_element(flm.T.begin(), flm.T.end());
-            flm.storeState();
-
-            //----- do unsteady with radiation to find Tmin
-
-            cout << endl << "do unsteady to get Tmin";
-            flm.LdoRadiation = true;
-            flm.solveUnsteady(nTauU,  1, false);
-            Tmin = *max_element(flm.T.begin(), flm.T.end());
-            flm.setIC("stored");
-
-            //----- do unsteady with radiation nominally evenly spaced between Tmax and Tmin
-
-            cout << endl << "do unsteady";
-            flm.solveUnsteady(nTauU,  nsaveU, false, Tmin, Tmax);
-            flm.setIC("stored");
-        }
-    }
 
     return 0;
 }
