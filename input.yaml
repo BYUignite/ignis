@@ -4,6 +4,8 @@ nTauRun:       5.0          # number of characteristic times (tau) to run
 nSteps:        1            # frequency to write file (1 writes at the end)
 isPremixed:    true         # flag for premixed or nonpremixed
 doRadiation:   false        # flag turn on/off radiation
+doSoot:        false        # flag turn on/off radiation
+nsoot:         2            # number of soot variables
 P:             101325       # system pressure (Pa)
 LBC:                        # ISF flame 2, phi = 2.34
     v: 0.0673

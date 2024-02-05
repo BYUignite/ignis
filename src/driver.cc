@@ -1,6 +1,7 @@
 #include "flame.h"
 #include "cantera/base/Solution.h"
 #include "yaml-cpp/yaml.h"
+#include "sootHeaders.h"
 
 #include <iostream>
 #include <sstream>
@@ -8,7 +9,10 @@
 #include <iomanip>
 #include <algorithm>
 
+#include <memory>
+
 using namespace std;
+using namespace soot;
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -28,6 +32,7 @@ int main() {
 
     bool   isPremixed  = inputFile["isPremixed"].as<bool>();
     bool   doRadiation = inputFile["doRadiation"].as<bool>();
+    bool   doSoot      = inputFile["doSoot"].as<bool>();
 
     size_t P = inputFile["P"].as<double>();
     double v = inputFile["LBC"]["v"].as<double>();
@@ -49,13 +54,30 @@ int main() {
 
     //---------------------
 
+    shared_ptr<sootModel> SM;
+
+    if(doSoot) {
+
+        nucleationModel  *nucl = new soot::nucleationModel_LL();
+        growthModel      *grow = new soot::growthModel_LL();
+        oxidationModel   *oxid = new soot::oxidationModel_LL();
+        coagulationModel *coag = new soot::coagulationModel_FM();
+
+        size_t nsoot = inputFile["nsoot"].as<size_t>();
+
+        SM = make_shared<sootModel_QMOM>(nsoot, nucl, grow, oxid, coag);
+        SM->coag->set_FM_multiplier(9.0/2.0/2.2);
+    }
+
+    //---------------------
+
     gas->setState_TPX(TLbc, P, &xLbc[0]);
     vector<double> yLbc(ngrd);
     gas->getMassFractions(&yLbc[0]);
     double mflux = gas->density()*v;
 
-    flame flm(isPremixed, doEnergyEqn, ngrd, L, P, csol,
-              yLbc, yLbc, TLbc, TLbc);
+    flame flm(isPremixed, doEnergyEqn, doSoot, ngrd, L, P, csol,
+              yLbc, yLbc, TLbc, TLbc, SM);
     flm.mflux = mflux;
     if(!doEnergyEqn) flm.setTprof(Tprof_h, Tprof_T);
 

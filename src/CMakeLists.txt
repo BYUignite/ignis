@@ -14,8 +14,11 @@ find_library(YAML yaml-cpp)
 find_library(KINSOL sundials_kinsol)
 find_library(CVODES sundials_cvodes)
 
-target_include_directories(flame.x PRIVATE "/usr/local/include" "/opt/radlib/include")
-target_link_directories(   flame.x PRIVATE "/usr/local/lib" "/opt/radlib/lib")
-target_link_libraries(     flame.x ${CANTERA} ${YAML} ${KINSOL} ${CVODES} ${Python_LIBRARIES} ${Python} ${ACCELERATE} radlib)
+find_package(LAPACK REQUIRED)
+
+target_include_directories(flame.x PRIVATE "/usr/local/include" "/opt/radlib/include" "/opt/sootlib/include/sootlib")
+target_link_directories(   flame.x PRIVATE "/usr/local/lib"     "/opt/radlib/lib"     "/opt/sootlib/lib")
+target_link_libraries(     flame.x ${CANTERA} ${YAML} ${KINSOL} ${CVODES} ${Python_LIBRARIES} ${Python} ${ACCELERATE} radlib sootModel)
+target_link_libraries(     flame.x LAPACK::LAPACK)
 
 install(TARGETS flame.x DESTINATION "${PROJECT_SOURCE_DIR}/run")

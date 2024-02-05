@@ -7,6 +7,7 @@
 #include "streams.h"
 #include "rad_planck_mean.h"
 #include "linearInterp.h"
+#include "sootHeaders.h"
 
 #include <vector>
 #include <memory>
@@ -20,16 +21,19 @@ public:
 
     size_t ngrd;
     size_t nsp;
+    size_t nsoot;
     size_t nvar;
     size_t nvarA;
 
     double                            P;
     std::vector<std::vector<double> > y;           // y[igrid][isp]
     std::vector<double>               T;
+    std::vector<std::vector<double> > sootvars;    // [igrid][isoot]: soot variables: moments or sections
 
     double                            Pstore;
-    std::vector<std::vector<double> > ystore;      // y[igrid][isp]
+    std::vector<std::vector<double> > ystore;      // [igrid][isp]
     std::vector<double>               Tstore;
+    std::vector<std::vector<double> > sootstore;   // [igrid][isoot]
 
     std::vector<double> yLbc, yRbc;
     double TLbc, TRbc;
@@ -57,8 +61,9 @@ public:
     double dT;
     int isave;
 
-    std::vector<std::vector<double> > flux_y;      // flux_y[I(igrid, ksp)]
-    std::vector<double>               flux_h;      // flux_h[igrid]
+    std::vector<std::vector<double> > flux_y;      // [I(igrid, ksp)]
+    std::vector<std::vector<double> > flux_soot;   // [I(igrid, ksoot)]
+    std::vector<double>               flux_h;      // [igrid]
 
     bool   isPremixed = false;
     double mflux = 0.0;
@@ -67,6 +72,11 @@ public:
     std::shared_ptr<linearInterp> LI;
     std::vector<double> Tprof_h;
     std::vector<double> Tprof_T;
+
+    //---------------------
+
+    bool doSoot = false;
+    std::shared_ptr<soot::sootModel> SM;
 
     ////////////////////// member functions
 
@@ -92,11 +102,12 @@ public:
 
     ////////////////////// constructors 
 
-    flame(const bool _isPremixed, const bool _doEnergyEqn, 
+    flame(const bool _isPremixed, const bool _doEnergyEqn, const bool _doSoot, 
           const size_t _ngrd, const double _L, const double _P,
           std::shared_ptr<Cantera::Solution> csol,
           const std::vector<double> &_yLbc, const std::vector<double> &_yRbc, 
-          const double _TLbc, const double _TRbc);
+          const double _TLbc, const double _TRbc,
+          std::shared_ptr<soot::sootModel> _SM);
 
     ~flame() {
         delete planckmean;

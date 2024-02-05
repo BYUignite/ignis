@@ -20,19 +20,23 @@ int rhsf_cvode(realtype t, N_Vector varsCV, N_Vector dvarsdtCV, void *user_data)
 
 flame::flame(const bool _isPremixed, 
              const bool _doEnergyEqn,
+             const bool _doSoot,
              const size_t _ngrd, const double _L, double _P, 
              shared_ptr<Cantera::Solution> csol,
              const vector<double> &_yLbc, const vector<double> &_yRbc, 
-             const double _TLbc, const double _TRbc) :
+             const double _TLbc, const double _TRbc,
+             shared_ptr<soot::sootModel> _SM) :
     isPremixed(_isPremixed),
     doEnergyEqn(_doEnergyEqn),
+    doSoot(_doSoot),
     ngrd(_ngrd),
     L(_L),
     P(_P),
     yLbc(_yLbc),
     yRbc(_yRbc),
     TLbc(_TLbc),
-    TRbc(_TRbc) {
+    TRbc(_TRbc),
+    SM(_SM) {
 
     //----------
 
@@ -41,10 +45,12 @@ flame::flame(const bool _isPremixed,
     trn = csol->transport(); 
 
     nsp   = gas->nSpecies();
-    nvar  = nsp + 1;            // dolh 
+    nsoot = (doSoot ? SM->nsoot : 0);
+    nvar  = nsp + nsoot + 1;
     nvarA = nvar*ngrd;
 
     y = vector<vector<double> >(ngrd, vector<double>(nsp, 0.0));
+    if(doSoot) sootvars = vector<vector<double> >(ngrd, vector<double>(nsoot, 0.0));
     T.resize(ngrd, 0.0);
 
     //---------- set grid
@@ -67,6 +73,7 @@ flame::flame(const bool _isPremixed,
     //----------
 
     flux_y = vector<vector<double> >(ngrd+1, vector<double>(nsp, 0.0));
+    if(doSoot) flux_soot = vector<vector<double> >(ngrd+1, vector<double>(nsoot, 0.0));
     flux_h.resize(ngrd+1);
 
     //---------- radiation object
@@ -215,6 +222,7 @@ void flame::storeState() {
     Pstore = P;
     ystore = y;
     Tstore = T;
+    sootstore = sootvars;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -251,9 +259,10 @@ void flame::setIC(std::string icType, string fname) {
     //-------------------
 
     else if (icType == "stored") {
-        P = Pstore;
-        y = ystore;
-        T = Tstore;
+        P        = Pstore;
+        y        = ystore;
+        T        = Tstore;
+        sootvars = sootstore;
     }
 
     //-------------------
@@ -309,6 +318,8 @@ void flame::setIC(std::string icType, string fname) {
 
     //-------------------
 
+    // Soot is inialized to zero in the constructor
+
     storeState();
 
 }
@@ -322,6 +333,7 @@ void flame::setFluxesUnity() {
 
     vector<double> D(ngrd);
     vector<double> density(ngrd);
+    vector<double> nu; if(doSoot) nu.resize(ngrd);
     vector<double> h(ngrd);
     for(int i=0; i<ngrd; i++) {
         gas->setMassFractions_NoNorm(&y[i][0]);
@@ -329,27 +341,51 @@ void flame::setFluxesUnity() {
         density[i] = gas->density();
         D[i] = trn->thermalConductivity()/(density[i]*gas->cp_mass());
         h[i] = gas->enthalpy_mass();
+        if(doSoot) nu[i] = trn->viscosity()/density[i];
     }
 
     //---------- interpolate to face center density and diffusivity
 
-
     vector<double> D_f(ngrd+1);
     vector<double> density_f(ngrd+1);
+    vector<double> nu_f; if(doSoot) nu_f.resize(ngrd+1);
+    vector<double> T_f;  if(doSoot) T_f.resize(ngrd+1);
 
-    gas->setState_TPY(TLbc, P, &yLbc[0]);
+    gas->setState_TPY(TLbc, P, &yLbc[0]);       // this is only approximate for composition for premixed burner
     density_f[0] = gas->density();
     D_f[0] = trn->thermalConductivity()/(density_f[0]*gas->cp_mass());
+    if(doSoot){
+        nu_f[0] = trn->viscosity()/density_f[0];
+        T_f[0] = TLbc;
+    }
 
     gas->setState_TPY(TRbc, P, &yRbc[0]);
-    density_f.back() = gas->density();
-    D_f.back() = trn->thermalConductivity()/(density_f.back()*gas->cp_mass());
+    if(!isPremixed) {
+        density_f.back() = gas->density();
+        D_f.back() = trn->thermalConductivity()/(density_f.back()*gas->cp_mass());
+        if(doSoot) {
+            nu_f.back() = trn->viscosity()/density_f.back();
+            T_f.back() = TRbc;
+        }
+    }
+    else{                          // extrapolate half a cell
+        density_f.back() = density.back() +(density[ngrd-1] - density[ngrd-2])/(dx[ngrd-1]+dx[ngrd-2])*2.0*(L-x[ngrd-1]);
+        D_f.back() = D.back() +(D[ngrd-1] - D[ngrd-2])/(dx[ngrd-1]+dx[ngrd-2])*2.0*(L-x[ngrd-1]);
+        if(doSoot){ 
+            nu_f.back() = nu.back() +(nu[ngrd-1] - nu[ngrd-2])/(dx[ngrd-1]+dx[ngrd-2])*2.0*(L-x[ngrd-1]);
+            T_f.back() = T.back() +(T[ngrd-1] - T[ngrd-2])/(dx[ngrd-1]+dx[ngrd-2])*2.0*(L-x[ngrd-1]);
+        }
+    }
 
-    for(int i=1; i<ngrd; i++) {
+    for(int i=1; i<ngrd; i++) {    // interpolate
         double f1 = dx[i-1]/(dx[i-1]+dx[i]);
         double f0 = 1.0-f1;
         density_f[i] = density[i-1]*f0 + density[i]*f1;
         D_f[i] = D[i-1]*f0 + D[i]*f1;
+        if(doSoot) {
+            nu_f[i] = nu[i-1]*f0 + nu[i]*f1; 
+            T_f[i]  = T[i-1]*f0 + T[i]*f1; 
+        }
     }
 
     //---------- fluxes y
@@ -392,6 +428,45 @@ void flame::setFluxesUnity() {
         gas->setState_TPY(TLbc, P, &yLbc[0]);
         flux_h[0] -= trn->thermalConductivity() * (T[1]-TLbc)/(dx[0]*0.5);
     }
+
+    //---------- fluxes soot
+
+    if(doSoot) {                // thermophoretic
+        for(int k=0; k<nsoot; k++) {
+            if(isPremixed) {
+                flux_soot[0][k]    = 0.0;
+                flux_soot[ngrd][k] = mflux/density_f.back()*sootvars[ngrd-1][k] - 
+                                     0.556*sootvars[ngrd-1][k]*nu_f.back()/T_f.back()*
+                                     (T_f.back()-T.back())/dx.back()*2;
+            }
+            else {
+                flux_soot[0][k]    = -0.556*sootvars[0][k]*nu_f[0]/TLbc*(T[0]-TLbc)/dx[0]*2;
+                flux_soot[ngrd][k] = -0.556*sootvars[ngrd-1][k]*nu_f.back()/TRbc*(TRbc-T.back())/dx.back()*2;
+            }
+            for(int i=1; i<ngrd; i++) {
+                flux_soot[i][k] = 0.556*nu_f[i]*(T[i]-T[i-1])/T_f[i]*2/(dx[i-1]+dx[i]);
+                flux_soot[i][k] *= (flux_soot[i][k] > 0 ? -sootvars[i][k] : -sootvars[i-1][k]); // upwind
+                if(isPremixed) flux_soot[i][k] += mflux/density_f[i] * sootvars[i-1][k];        // upwind
+            }
+        }
+    }
+
+    // if(doSoot) {            // unity Le like species
+    //     for(int k=0; k<nsoot; k++) {
+    //         if(isPremixed) {
+    //             flux_soot[0][k]    = 0.0;
+    //             flux_soot[ngrd][k] = mflux/density_f.back() * sootvars[ngrd-1][k];
+    //         }
+    //         else {
+    //             flux_soot[0][k]    = -density_f[0]    *D_f[0]    *(sootvars[0][k]/density[0]-0.0)     *2/dx[0];
+    //             flux_soot[ngrd][k] = -density_f.back()*D_f.back()*(0.0-sootvars[ngrd-1][k]/density[ngrd-1])*2/dx.back();
+    //         }
+    //         for(int i=1; i<ngrd; i++) {
+    //             flux_soot[i][k] = -density_f[i]*D_f[i]*(sootvars[i][k]/density[i]-sootvars[i-1][k]/density[i-1])*2/(dx[i-1]+dx[i]);
+    //             if(isPremixed) flux_soot[i][k] += mflux/density_f[i] * sootvars[i-1][k];
+    //         }
+    //     }
+    // }
 }
 
 //////////////////////////////////////////////////////////////////////////////////
