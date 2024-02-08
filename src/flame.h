@@ -45,6 +45,8 @@ public:
 
     double Tscale;
     double hscale;
+    std::vector<double> sootScales;
+
     std::vector<double> vars0;
     std::vector<double> F0;
     double s;
@@ -77,6 +79,7 @@ public:
 
     bool doSoot = false;
     std::shared_ptr<soot::sootModel> SM;
+    std::shared_ptr<soot::state>     SMstate;
 
     ////////////////////// member functions
 
@@ -107,7 +110,8 @@ public:
           std::shared_ptr<Cantera::Solution> csol,
           const std::vector<double> &_yLbc, const std::vector<double> &_yRbc, 
           const double _TLbc, const double _TRbc,
-          std::shared_ptr<soot::sootModel> _SM);
+          std::shared_ptr<soot::sootModel> _SM, 
+          std::shared_ptr<soot::state>     _SMstate);
 
     ~flame() {
         delete planckmean;

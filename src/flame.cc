@@ -1,5 +1,6 @@
 
 #include "flame.h"
+#include "cantera/base/ct_defs.h"
 #include "solver_kinsol.h"
 #include "integrator_cvode.h"
 
@@ -8,8 +9,10 @@
 #include <iomanip>
 #include <fstream>
 #include <sstream>
+#include <numeric>
 
 using namespace std;
+using soot::sootModel, soot::state, soot::gasSp, soot::gasSpMapIS, soot::gasSpMapES;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -25,7 +28,8 @@ flame::flame(const bool _isPremixed,
              shared_ptr<Cantera::Solution> csol,
              const vector<double> &_yLbc, const vector<double> &_yRbc, 
              const double _TLbc, const double _TRbc,
-             shared_ptr<soot::sootModel> _SM) :
+             shared_ptr<sootModel> _SM, 
+             shared_ptr<state>     _SMstate) :
     isPremixed(_isPremixed),
     doEnergyEqn(_doEnergyEqn),
     doSoot(_doSoot),
@@ -36,7 +40,8 @@ flame::flame(const bool _isPremixed,
     yRbc(_yRbc),
     TLbc(_TLbc),
     TRbc(_TRbc),
-    SM(_SM) {
+    SM(_SM),
+    SMstate(_SMstate) {
 
     //----------
 
@@ -69,6 +74,11 @@ flame::flame(const bool _isPremixed,
 
     hscale = max(abs(hLbc), abs(hRbc));
     Tscale = 2500;
+    if(doSoot) {                                  // todo make this better jansenpb
+        sootScales.resize(nsoot, 1.0);
+        sootScales[0] = 1e16;
+        sootScales[1] = 0.01;
+    }
 
     //----------
 
@@ -168,6 +178,11 @@ void flame::writeFile(string fname) {
         stringstream ss; ss << setfill('0') << setw(3) << j++ << "_" << gas->speciesName(k);
         ofile << setw(19) << ss.str();
     }
+    if(doSoot) { // todo: make sure this is calling the correct variables // jansenpb 
+        for(int u=0; u<nsoot; u++) {
+            stringstream yy; yy << setfill('0') << setw(3) << j++ << "_" << "M"<<u;
+            ofile << setw(19) << yy.str();
+    }}
 
     ofile << scientific;
     ofile << setprecision(10);
@@ -180,6 +195,10 @@ void flame::writeFile(string fname) {
     ofile << setw(19) << rhoLbc;
     for(int k=0; k<nsp; k++)
         ofile << setw(19) << yLbc[k];
+    if(doSoot) {
+        for(int k=0; k<nsoot; k++)
+            ofile << setw(19) << 0;
+    }
 
     for(int i=0; i<ngrd; i++) {
         ofile << endl;
@@ -190,7 +209,10 @@ void flame::writeFile(string fname) {
         ofile << setw(19) << rho[i];
         for(int k=0; k<nsp; k++)
             ofile << setw(19) << y[i][k];
-    }
+        if(doSoot) { 
+            for(int k=0; k<nsoot; k++)
+                ofile << setw(19) << sootvars[i][k];         // todo: make sure the right vars are called
+    }}
 
     if(isPremixed) {
         ofile << endl;
@@ -199,7 +221,9 @@ void flame::writeFile(string fname) {
         ofile << setw(19) << h.back();
         ofile << setw(19) << rho.back();
         for(int k=0; k<nsp; k++)
-            ofile << setw(19) << y.back()[k]; 
+            ofile << setw(19) << y.back()[k];
+        for(int k=0; k<nsoot; k++)
+            ofile << setw(19) << sootvars.back()[k];
     }
     else {
         ofile << endl;
@@ -757,6 +781,10 @@ void flame::solveUnsteady(double nTauRun, int nSteps, bool LwriteTime, double Tm
     for(size_t i=0; i<ngrd; i++) {
         for(size_t k=0; k<nsp; k++)
             vars[Ia(i,k)] = y[i][k];
+        if(doSoot) {
+            for(size_t k=nsp; k<nsp+nsoot; k++)  // jansenpb
+                vars[Ia(i,k)] = sootvars[i][k]/sootScales[k];    // dont't forget sootscales
+        }
         vars[Ia(i,nvar-1)] = T[i]/Tscale;      // dolh comment to remove h
     }
     
@@ -801,6 +829,10 @@ void flame::solveUnsteady(double nTauRun, int nSteps, bool LwriteTime, double Tm
     for(size_t i=0; i<ngrd; i++) {
         for(size_t k=0; k<nsp; k++)
             y[i][k] = vars[Ia(i,k)];
+        if(doSoot) {
+            for(size_t k=nsp; k<nsp+nsoot; k++)
+                sootvars[i][k] = vars[Ia(i,k)]*sootScales[k];    // jansenpb
+        }
         T[i] = vars[Ia(i,nvar-1)]*Tscale;      // dolh comment to remove h
     }
 
@@ -816,6 +848,10 @@ int flame::rhsf(const double *vars, double *dvarsdt) {
     for(size_t i=0; i<ngrd; i++) {
         for(size_t k=0; k<nsp; k++)
             y[i][k] = vars[Ia(i,k)];
+        if(doSoot) {
+            for(size_t k=nsp; k<nsp+nsoot; k++)
+                sootvars[i][k] = vars[Ia(i,k)]*sootScales[k];    // jansenpb
+        }
         T[i] = vars[Ia(i,nvar-1)]*Tscale;      // dolh comment to remove h
     }
 //------------ set rates dvarsdt (dvars/dt)
@@ -827,14 +863,33 @@ int flame::rhsf(const double *vars, double *dvarsdt) {
     vector<double> Q(ngrd);
     if(doRadiation) setQrad(Q);
 
+    vector<double> yPAH; if(doSoot) yPAH.resize(6,0.0);
+
     for(size_t i=0; i<ngrd; i++) {
         gas->setMassFractions_NoNorm(&y[i][0]);
         gas->setState_TP(T[i], P);
         kin->getNetProductionRates(&rr[0]);          // kmol/m3*s
-        double rho = gas->density(); 
+        double rho = gas->density();
+        if(doSoot) {
+            SMstate->setState(T[i], P, rho, trn->viscosity(), y[i], yPAH, sootvars[i], nsoot);
+            SM->setSourceTerms(*SMstate);
+        }
         for(size_t k=0; k<nsp; k++)
             dvarsdt[Ia(i,k)]  = -(flux_y[i+1][k] - flux_y[i][k])/(rho*dx[i]) + 
                                 rr[k]*gas->molecularWeight(k)/rho;
+        if(doSoot) {
+            for(size_t k=nsp; k<nsp+nsoot; k++)
+                dvarsdt[Ia(i,k)] = -(flux_soot[i+1][k] - flux_soot[i][k])/(dx[i]) + 
+                                   SM->sources.sootSources[k];
+            // loop over the gas species in the soot model and compare with Cantera
+            // update the gas source terms from the soot model
+            for(size_t ksootgases=0; ksootgases<(size_t)gasSp::size; ksootgases++) {
+                size_t kgas = gas->speciesIndex(gasSpMapIS[ksootgases]);
+                if(kgas != Cantera::npos)
+                    dvarsdt[Ia(i,kgas)] += SM->sources.gasSources[ksootgases];
+            }
+
+        }
 
         if(doEnergyEqn) {
             double cp  = gas->cp_mass();
@@ -852,9 +907,7 @@ int flame::rhsf(const double *vars, double *dvarsdt) {
         else
             dvarsdt[Ia(i,nvar-1)] = 0.0;
     }
-
     //-------------
-
     double TmaxLocal = *max_element(T.begin(), T.end());
     if(TmaxLocal <= Ttarget) {
         cout << endl << isave << "  " << TmaxLocal << "  " << Ttarget << "  ";

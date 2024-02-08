@@ -55,6 +55,7 @@ int main() {
     //---------------------
 
     shared_ptr<sootModel> SM;
+    shared_ptr<state>     SMstate;
 
     if(doSoot) {
 
@@ -67,6 +68,10 @@ int main() {
 
         SM = make_shared<sootModel_QMOM>(nsoot, nucl, grow, oxid, coag);
         SM->coag->set_FM_multiplier(9.0/2.0/2.2);
+        //vector<double> sootScales(nsoot, 1.0);
+
+        SMstate = make_shared<state>(nsoot);
+        //SMstate->setSootScales(sootScales);
     }
 
     //---------------------
@@ -77,7 +82,7 @@ int main() {
     double mflux = gas->density()*v;
 
     flame flm(isPremixed, doEnergyEqn, doSoot, ngrd, L, P, csol,
-              yLbc, yLbc, TLbc, TLbc, SM);
+              yLbc, yLbc, TLbc, TLbc, SM, SMstate);
     flm.mflux = mflux;
     if(!doEnergyEqn) flm.setTprof(Tprof_h, Tprof_T);
 
