@@ -212,7 +212,8 @@ void flame::writeFile(string fname) {
         if(doSoot) { 
             for(int k=0; k<nsoot; k++)
                 ofile << setw(19) << sootvars[i][k];         // todo: make sure the right vars are called
-    }}
+        }
+    }
 
     if(isPremixed) {
         ofile << endl;
@@ -222,8 +223,10 @@ void flame::writeFile(string fname) {
         ofile << setw(19) << rho.back();
         for(int k=0; k<nsp; k++)
             ofile << setw(19) << y.back()[k];
-        for(int k=0; k<nsoot; k++)
-            ofile << setw(19) << sootvars.back()[k];
+        if(doSoot) {
+            for(int k=0; k<nsoot; k++)
+                ofile << setw(19) << sootvars.back()[k];
+        }
     }
     else {
         ofile << endl;
@@ -475,22 +478,22 @@ void flame::setFluxesUnity() {
         }
     }
 
-    // if(doSoot) {            // unity Le like species
-    //     for(int k=0; k<nsoot; k++) {
-    //         if(isPremixed) {
-    //             flux_soot[0][k]    = 0.0;
-    //             flux_soot[ngrd][k] = mflux/density_f.back() * sootvars[ngrd-1][k];
-    //         }
-    //         else {
-    //             flux_soot[0][k]    = -density_f[0]    *D_f[0]    *(sootvars[0][k]/density[0]-0.0)     *2/dx[0];
-    //             flux_soot[ngrd][k] = -density_f.back()*D_f.back()*(0.0-sootvars[ngrd-1][k]/density[ngrd-1])*2/dx.back();
-    //         }
-    //         for(int i=1; i<ngrd; i++) {
-    //             flux_soot[i][k] = -density_f[i]*D_f[i]*(sootvars[i][k]/density[i]-sootvars[i-1][k]/density[i-1])*2/(dx[i-1]+dx[i]);
-    //             if(isPremixed) flux_soot[i][k] += mflux/density_f[i] * sootvars[i-1][k];
-    //         }
-    //     }
-    // }
+   /*  if(doSoot) {            // unity Le like species
+         for(int k=0; k<nsoot; k++) {
+             if(isPremixed) {
+                 flux_soot[0][k]    = 0.0;
+                 flux_soot[ngrd][k] = mflux/density_f.back() * sootvars[ngrd-1][k];
+             }
+             else {
+                 flux_soot[0][k]    = -density_f[0]    *D_f[0]    *(sootvars[0][k]/density[0]-0.0)     *2/dx[0];
+                 flux_soot[ngrd][k] = -density_f.back()*D_f.back()*(0.0-sootvars[ngrd-1][k]/density[ngrd-1])*2/dx.back();
+             }
+             for(int i=1; i<ngrd; i++) {
+                 flux_soot[i][k] = -density_f[i]*D_f[i]*(sootvars[i][k]/density[i]-sootvars[i-1][k]/density[i-1])*2/(dx[i-1]+dx[i]);
+                 if(isPremixed) flux_soot[i][k] += mflux/density_f[i] * sootvars[i-1][k];
+             }
+         }
+     }*/
 }
 
 //////////////////////////////////////////////////////////////////////////////////
@@ -814,9 +817,8 @@ void flame::solveUnsteady(double nTauRun, int nSteps, bool LwriteTime, double Tm
     isave = 1;
 
     for(int istep=1; istep<=nSteps; istep++, t+=dt) {
-
         integ.integrate(vars, dt);
-
+        cout << "Integrated correctly" << endl; // jansenpb debug density = nan
         if(LwriteTime && dT <= 0.0) {           // write in time; (write in Temp is in rhsf)
             stringstream ss; ss << "L_" << L << "U_" << setfill('0') << setw(3) << isave++ << ".dat";
             string fname = ss.str();
@@ -878,9 +880,10 @@ int flame::rhsf(const double *vars, double *dvarsdt) {
             dvarsdt[Ia(i,k)]  = -(flux_y[i+1][k] - flux_y[i][k])/(rho*dx[i]) + 
                                 rr[k]*gas->molecularWeight(k)/rho;
         if(doSoot) {
-            for(size_t k=nsp; k<nsp+nsoot; k++)
-                dvarsdt[Ia(i,k)] = -(flux_soot[i+1][k] - flux_soot[i][k])/(dx[i]) + 
-                                   SM->sources.sootSources[k];
+            for(size_t k=nsp; k<nsp+nsoot; k++) {
+                dvarsdt[Ia(i,k)] = (-(flux_soot[i+1][k] - flux_soot[i][k])/(dx[i]) + 
+                                   SM->sources.sootSources[k]);
+            }
             // loop over the gas species in the soot model and compare with Cantera
             // update the gas source terms from the soot model
             for(size_t ksootgases=0; ksootgases<(size_t)gasSp::size; ksootgases++) {
@@ -926,7 +929,6 @@ int flame::rhsf(const double *vars, double *dvarsdt) {
 // CVODE interface; CVODE calls this function, which then calls user_data's rhsf 
 
 int rhsf_cvode(realtype t, N_Vector varsCV, N_Vector dvarsdtCV, void *user_data) {
-
     flame *flm = static_cast<flame *>(user_data);
 
     double *vars  = N_VGetArrayPointer(varsCV);
