@@ -75,9 +75,12 @@ flame::flame(const bool _isPremixed,
     hscale = max(abs(hLbc), abs(hRbc));
     Tscale = 2500;
     if(doSoot) {                                  // todo make this better jansenpb
-        sootScales.resize(nsoot, 1.0);
-        sootScales[0] = 1e16;
-        sootScales[1] = 0.01;
+        // add scaling factors to equal nsoot
+        vector<double> scalesList{1e16, 0.01, 1e-16, 3, 1e6};
+        sootScales = vector<double>(nsoot, 1.0);
+        for (size_t i=0; i<nsoot; i++) {
+            sootScales[i] = scalesList[i];
+        }
     }
 
     //----------
@@ -778,15 +781,15 @@ void flame::setQrad(vector<double> &Q) {
 void flame::solveUnsteady(double nTauRun, int nSteps, bool LwriteTime, double Tmin, double Tmax) {
 
     //---------- transfer variables into single array
-
     vector<double> vars(nvarA);
 
     for(size_t i=0; i<ngrd; i++) {
         for(size_t k=0; k<nsp; k++)
             vars[Ia(i,k)] = y[i][k];
         if(doSoot) {
-            for(size_t k=nsp; k<nsp+nsoot; k++)  // jansenpb
-                vars[Ia(i,k)] = sootvars[i][k]/sootScales[k];    // dont't forget sootscales
+            for(size_t k=nsp; k<nsp+nsoot; k++) {  // jansenpb
+                vars[Ia(i,k)] = sootvars[i][k-nsp]/sootScales[k-nsp];    // dont't forget sootscales
+            }
         }
         vars[Ia(i,nvar-1)] = T[i]/Tscale;      // dolh comment to remove h
     }
@@ -833,7 +836,7 @@ void flame::solveUnsteady(double nTauRun, int nSteps, bool LwriteTime, double Tm
             y[i][k] = vars[Ia(i,k)];
         if(doSoot) {
             for(size_t k=nsp; k<nsp+nsoot; k++)
-                sootvars[i][k] = vars[Ia(i,k)]*sootScales[k];    // jansenpb
+                sootvars[i][k-nsp] = vars[Ia(i,k)]*sootScales[k-nsp];    // jansenpb
         }
         T[i] = vars[Ia(i,nvar-1)]*Tscale;      // dolh comment to remove h
     }
@@ -852,7 +855,7 @@ int flame::rhsf(const double *vars, double *dvarsdt) {
             y[i][k] = vars[Ia(i,k)];
         if(doSoot) {
             for(size_t k=nsp; k<nsp+nsoot; k++)
-                sootvars[i][k] = vars[Ia(i,k)]*sootScales[k];    // jansenpb
+                sootvars[i][k-nsp] = vars[Ia(i,k)]*sootScales[k-nsp];    // jansenpb
         }
         T[i] = vars[Ia(i,nvar-1)]*Tscale;      // dolh comment to remove h
     }
@@ -872,8 +875,9 @@ int flame::rhsf(const double *vars, double *dvarsdt) {
         gas->setState_TP(T[i], P);
         kin->getNetProductionRates(&rr[0]);          // kmol/m3*s
         double rho = gas->density();
+        double nu  = trn->viscosity();
         if(doSoot) {
-            SMstate->setState(T[i], P, rho, trn->viscosity(), y[i], yPAH, sootvars[i], nsoot);
+            SMstate->setState(T[i], P, rho, nu, y[i], yPAH, sootvars[i], nsoot);
             SM->setSourceTerms(*SMstate);
         }
         for(size_t k=0; k<nsp; k++)
@@ -881,8 +885,8 @@ int flame::rhsf(const double *vars, double *dvarsdt) {
                                 rr[k]*gas->molecularWeight(k)/rho;
         if(doSoot) {
             for(size_t k=nsp; k<nsp+nsoot; k++) {
-                dvarsdt[Ia(i,k)] = (-(flux_soot[i+1][k] - flux_soot[i][k])/(dx[i]) + 
-                                   SM->sources.sootSources[k]);
+                dvarsdt[Ia(i,k)] = -(flux_soot[i+1][k] - flux_soot[i][k])/(dx[i]) + 
+                                   SM->sources.sootSources[k];
             }
             // loop over the gas species in the soot model and compare with Cantera
             // update the gas source terms from the soot model

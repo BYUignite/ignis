@@ -69,7 +69,9 @@ int main() {
         SM = make_shared<sootModel_QMOM>(nsoot, nucl, grow, oxid, coag);
         SM->coag->set_FM_multiplier(9.0/2.0/2.2);
         //vector<double> sootScales(nsoot, 1.0);
-
+        //sootScales[0] = 1e16;
+        //sootScales[1] = 0.01;
+        // need a scaling factor for each soot moment
         SMstate = make_shared<state>(nsoot);
         //SMstate->setSootScales(sootScales);
     }
