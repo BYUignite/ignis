@@ -76,7 +76,7 @@ flame::flame(const bool _isPremixed,
     Tscale = 2500;
     if(doSoot) {                                  // todo make this better jansenpb
         // add scaling factors to equal nsoot
-        vector<double> scalesList{1e16, 0.01, 1e-16, 3, 1e6};
+        vector<double> scalesList{1e17, 0.01, 1e-16, 3, 1e6};
         sootScales = vector<double>(nsoot, 1.0);
         for (size_t i=0; i<nsoot; i++) {
             sootScales[i] = scalesList[i];
@@ -481,7 +481,7 @@ void flame::setFluxesUnity() {
         }
     }
 
-   /*  if(doSoot) {            // unity Le like species
+     /*if(doSoot) {            // unity Le like species
          for(int k=0; k<nsoot; k++) {
              if(isPremixed) {
                  flux_soot[0][k]    = 0.0;
@@ -821,7 +821,6 @@ void flame::solveUnsteady(double nTauRun, int nSteps, bool LwriteTime, double Tm
 
     for(int istep=1; istep<=nSteps; istep++, t+=dt) {
         integ.integrate(vars, dt);
-        cout << "Integrated correctly" << endl; // jansenpb debug density = nan
         if(LwriteTime && dT <= 0.0) {           // write in time; (write in Temp is in rhsf)
             stringstream ss; ss << "L_" << L << "U_" << setfill('0') << setw(3) << isave++ << ".dat";
             string fname = ss.str();
@@ -854,8 +853,9 @@ int flame::rhsf(const double *vars, double *dvarsdt) {
         for(size_t k=0; k<nsp; k++)
             y[i][k] = vars[Ia(i,k)];
         if(doSoot) {
-            for(size_t k=nsp; k<nsp+nsoot; k++)
+            for(size_t k=nsp; k<nsp+nsoot; k++) {
                 sootvars[i][k-nsp] = vars[Ia(i,k)]*sootScales[k-nsp];    // jansenpb
+        }
         }
         T[i] = vars[Ia(i,nvar-1)]*Tscale;      // dolh comment to remove h
     }
@@ -885,8 +885,9 @@ int flame::rhsf(const double *vars, double *dvarsdt) {
                                 rr[k]*gas->molecularWeight(k)/rho;
         if(doSoot) {
             for(size_t k=nsp; k<nsp+nsoot; k++) {
-                dvarsdt[Ia(i,k)] = -(flux_soot[i+1][k] - flux_soot[i][k])/(dx[i]) + 
-                                   SM->sources.sootSources[k];
+                dvarsdt[Ia(i,k)] = -(flux_soot[i+1][k-nsp] - flux_soot[i][k-nsp])/(dx[i]) + 
+                                   SM->sources.sootSources[k-nsp];
+                dvarsdt[Ia(i,k)] /= sootScales[k-nsp];     //jansenpb; to match Tscale below; line 913 
             }
             // loop over the gas species in the soot model and compare with Cantera
             // update the gas source terms from the soot model
