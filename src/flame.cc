@@ -390,7 +390,7 @@ void flame::setFluxes() {
     for (int i=1; i<ngrd; i++) {
         jstar = 0.0;
         for(int k=0; k<nsp; k++) {
-            flux_y[i][k] = -density_f[i]*D_f[i][k]*(y[i][k]-y[i-1][k])*2/(dx[i-1]+dx[i])\
+            flux_y[i][k] = -density_f[i]*D_f[i][k]*(y[i][k]-y[i-1][k])*2/(dx[i-1]+dx[i])
                            -density_f[i]*D_f[i][k]*y_f[i][k]*(M[i]-M[i-1])*2/(dx[i-1]+dx[i])/M_f[i];
             jstar += flux_y[i][k];
         }
@@ -402,8 +402,8 @@ void flame::setFluxes() {
     //Left boundary
     jstar = 0.0;
     for(int k=0; k<nsp; k++) {
-        flux_y[0][k]    = -density_f[0]    *D_f[0][k]    *(y[0][k]-yLbc[k])     *2/dx[0]\
-                          -density_f[0]    *D_f[0][k]    *y_f[0][k]    *(M[0]-M_f[0])         *2/dx[0];
+        flux_y[0][k]    = -density_f[0]*D_f[0][k]*(y[0][k]-yLbc[k])*2/dx[0]
+                          -density_f[0]*D_f[0][k]*y_f[0][k]*(M[0]-M_f[0])*2/dx[0]/M_f[0];
         jstar += flux_y[0][k];
     }	
     for(int k=0; k<nsp; k++) {
@@ -412,8 +412,8 @@ void flame::setFluxes() {
     //Right boundary
     jstar = 0.0;
     for(int k=0; k<nsp; k++) {
-        flux_y[ngrd][k] = -density_f.back()*D_f.back()[k]*(yRbc[k]-y[ngrd-1][k])*2/dx.back()\
-                          -density_f.back()*D_f.back()[k]*y_f.back()[k]*(M_f.back()-M[ngrd-1])*2/dx.back();
+        flux_y[ngrd][k] = -density_f.back()*D_f.back()[k]*(yRbc[k]-y[ngrd-1][k])*2/dx.back()
+                          -density_f.back()*D_f.back()[k]*y_f.back()[k]*(M_f.back()-M[ngrd-1])*2/dx.back()/M_f.back();
         jstar += flux_y[ngrd][k];
     }
     for(int k=0; k<nsp; k++) {
