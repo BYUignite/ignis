@@ -389,8 +389,8 @@ void flame::setFluxesUnity() {
         T_f[0] = TLbc;
     }
 
-    gas->setState_TPY(TRbc, P, &yRbc[0]);
     if(!isPremixed) {
+        gas->setState_TPY(TRbc, P, &yRbc[0]);
         density_f.back() = gas->density();
         D_f.back() = trn->thermalConductivity()/(density_f.back()*gas->cp_mass());
         if(doSoot) {
@@ -524,36 +524,56 @@ void flame::setFluxes() {
     vector<vector<double>> y_f(ngrd+1, vector<double> (nsp,0.0));
     vector<double> density_f(ngrd+1);
     vector<double> M_f(ngrd+1);
-    vector<double> tcond_f(ngrd+1);
     vector<double> T_f(ngrd+1);
+    vector<double> tcond_f(ngrd+1);
+    vector<double> nu_f; if(doSoot) nu_f.resize(ngrd+1);
 
 
-    gas->setState_TPY(TLbc, P, &yLbc[0]);
+    gas->setState_TPY(TLbc, P, &yLbc[0]);   // this is only approximate for composition for premixed burner
     density_f[0] = gas->density();
     M_f[0] = gas->meanMolecularWeight();
     trn->getMixDiffCoeffs(&D_f[0][0]);
-    tcond_f[0] = trn->thermalConductivity();
+    tcond_f[l] = trn->thermalConductivity();
+    nu_f[0]    = trn->viscosity()/density_f[0];
     T_f[0] = TLbc;
     y_f[0] = yLbc;
 
-    gas->setState_TPY(TRbc, P, &yRbc[0]);
-    density_f.back() = gas->density();
-    M_f.back() = gas->meanMolecularWeight();
-    trn->getMixDiffCoeffs(&(D_f.back()[0]));
-    tcond_f.back() = trn->thermalConductivity();
-    T_f.back() = TRbc;
-    y_f.back() = yRbc;
+    if(!isPremixed) {
+        gas->setState_TPY(TRbc, P, &yRbc[0]);
+        density_f.back() = gas->density();
+        M_f.back() = gas->meanMolecularWeight();
+        trn->getMixDiffCoeffs(&(D_f.back()[0]));
+        tcond_f.back() = trn->thermalConductivity();
+        T_f.back() = TRbc;
+        y_f.back() = yRbc;
+        if(doSoot)
+            nu_f.back() = trn->viscosity()/density_f.back();
+    }
+    else {
+        density_f.back()  = density.back() +(density[ngrd-1] - density[ngrd-2])/(dx[ngrd-1]+dx[ngrd-2])*2.0*(L-x[ngrd-1]);
+        tcond_f.back()    = tcond.back()   +(tcond[ngrd-1]   - tcond[ngrd-2])  /(dx[ngrd-1]+dx[ngrd-2])*2.0*(L-x[ngrd-1]);
+        T_f.back()        = T.back()       +(T[ngrd-1]       - T[ngrd-2])      /(dx[ngrd-1]+dx[ngrd-2])*2.0*(L-x[ngrd-1]);
+        M_f.back()        = M.back()       +(M[ngrd-1]       - M[ngrd-2])      /(dx[ngrd-1]+dx[ngrd-2])*2.0*(L-x[ngrd-1]);
+        for(int k=0; k<nsp; k++) {
+            D_f.back()[i] = D.back()[i]    +(D[ngrd-1][k]    - D[ngrd-2][k])   /(dx[ngrd-1]+dx[ngrd-2])*2.0*(L-x[ngrd-1]);
+            y_f.back()[i] = y.back()[i]    +(y[ngrd-1][k]    - y[ngrd-2][k])   /(dx[ngrd-1]+dx[ngrd-2])*2.0*(L-x[ngrd-1]);
+        }
+        if(doSoot)
+            nu_f.back()   = nu.back()      +(nu[ngrd-1]      - nu[ngrd-2])     /(dx[ngrd-1]+dx[ngrd-2])*2.0*(L-x[ngrd-1]);
+    }
 
     for (int i=1; i<ngrd; i++) {
         double f1 = dx[i-1]/(dx[i-1]+dx[i]);
         double f0 = 1.0-f1;
-        density_f[i] = density[i-1]*f0 + density[i] * f1;
-        T_f[i]       = T[i-1]      *f0 + T[i]       * f1;
-        tcond_f[i]   = tcond[i-1]  *f0 + tcond[i]   * f1;
-        M_f[i]       = M[i-1]      *f0 + M[i]       * f1;
+        density_f[i]  = density[i-1]*f0 + density[i]*f1;
+        T_f[i]        = T[i-1]      *f0 + T[i]      *f1;
+        tcond_f[i]    = tcond[i-1]  *f0 + tcond[i]  *f1;
+        M_f[i]        = M[i-1]      *f0 + M[i]      *f1;
+        if(doSoot)
+            nu_f[i]   = nu[i-1]     *f0 + nu[i]     *f1;
         for(int k=0; k<nsp; k++) {
-            D_f[i][k] = D[i-1][k]*f0 + D[i][k]*f1;
-            y_f[i][k] = y[i-1][k]*f0 + y[i][k]*f1;
+            D_f[i][k] = D[i-1][k]   *f0 + D[i][k]   *f1;
+            y_f[i][k] = y[i-1][k]   *f0 + y[i][k]   *f1;
         }
     }
 
@@ -561,6 +581,44 @@ void flame::setFluxes() {
 
     double jstar;             // correction flux so that all fluxes sum to zero. This is equal to using a correction velocity
                               // j_i_corrected = j_i - Yi*jstar; jstar = sum(j_i).
+
+    //--------- Boundary faces
+
+    // Left boundary
+
+    if(isPremixed)
+        for(int k=0; k<nsp; k++)
+            flux_y[0][k]    = mflux * yLbc[k];
+    else {
+        jstar = 0.0;
+        for(int k=0; k<nsp; k++) {
+            flux_y[0][k]    = -density_f[0]*D_f[0][k]*(y[0][k]-yLbc[k])*2/dx[0]
+                              -density_f[0]*D_f[0][k]*y_f[0][k]*(M[0]-M_f[0])*2/dx[0]/M_f[0];
+            jstar += flux_y[0][k];
+        }	
+        for(int k=0; k<nsp; k++) {
+            flux_y[0][k] -= y_f[0][k]*jstar;
+        }
+    }
+
+    // Right boundary
+
+    if(isPremixed)
+        for(int k=0; k<nsp; k++)
+            flux_y[ngrd][k]    = mflux * y[ngrd-1][k];
+    else {
+        jstar = 0.0;
+        for(int k=0; k<nsp; k++) {
+            flux_y[ngrd][k] = -density_f.back()*D_f.back()[k]*(yRbc[k]-y[ngrd-1][k])*2/dx.back()
+                              -density_f.back()*D_f.back()[k]*y_f.back()[k]*(M_f.back()-M[ngrd-1])*2/dx.back()/M_f.back();
+            jstar += flux_y[ngrd][k];
+        }
+        for(int k=0; k<nsp; k++) {
+            flux_y[ngrd][k] -= y_f[ngrd][k]*jstar;
+        }
+    }
+
+    // Interior
 
     for (int i=1; i<ngrd; i++) {
         jstar = 0.0;
@@ -571,36 +629,20 @@ void flame::setFluxes() {
         }
         for(int k=0; k<nsp; k++) {
             flux_y[i][k] -= y_f[i][k]*jstar;
+            if(isPremixed) flux_y[i][k] += mflux*y[i-1][k];
         }
-    }
-    //--------- Boundary faces
-    //Left boundary
-    jstar = 0.0;
-    for(int k=0; k<nsp; k++) {
-        flux_y[0][k]    = -density_f[0]*D_f[0][k]*(y[0][k]-yLbc[k])*2/dx[0]
-                          -density_f[0]*D_f[0][k]*y_f[0][k]*(M[0]-M_f[0])*2/dx[0]/M_f[0];
-        jstar += flux_y[0][k];
-    }	
-    for(int k=0; k<nsp; k++) {
-        flux_y[0][k] -= y_f[0][k]*jstar;
-    }
-    //Right boundary
-    jstar = 0.0;
-    for(int k=0; k<nsp; k++) {
-        flux_y[ngrd][k] = -density_f.back()*D_f.back()[k]*(yRbc[k]-y[ngrd-1][k])*2/dx.back()
-                          -density_f.back()*D_f.back()[k]*y_f.back()[k]*(M_f.back()-M[ngrd-1])*2/dx.back()/M_f.back();
-        jstar += flux_y[ngrd][k];
-    }
-    for(int k=0; k<nsp; k++) {
-        flux_y[ngrd][k] -= y_f[ngrd][k]*jstar;
     }
 
     //---------- fluxes h
 
-    flux_h[0]     = -tcond_f[0]*(T[0]-TLbc)*2/dx[0];
-    flux_h.back() = -tcond_f.back()*(TRbc-T.back())*2/dx.back(); 
+    // thermal conductivity portion
+
+    flux_h[0]     = -tcond_f[0]*(T[0]-T_f[0])*2/dx[0];
+    flux_h.back() = -tcond_f.back()*(T_f.back()-T.back())*2/dx.back(); 
     for(int i=1; i<ngrd; i++)
         flux_h[i] = -tcond_f[i]*(T[i]-T[i-1])*2/(dx[i-1]+dx[i]);
+
+    // species portion (builds in advective flux if isPremixed)
 
     vector<double> hsp(nsp);
 
@@ -609,10 +651,10 @@ void flame::setFluxes() {
     for(size_t k=0; k<nsp; k++)
         flux_h[0] += flux_y[0][k]*hsp[k]*TLbc*Cantera::GasConstant/gas->molecularWeight(k);
 
-    gas->setState_TPY(TRbc, P, &yRbc[0]);
+    gas->setState_TPY(T_f.back(), P, &(y_f.back()[0]));
     gas->getEnthalpy_RT(&hsp[0]);
     for(size_t k=0; k<nsp; k++)
-        flux_h.back() += flux_y.back()[k]*hsp[k]*TRbc*Cantera::GasConstant/gas->molecularWeight(k);
+        flux_h.back() += flux_y.back()[k]*hsp[k]*T_f.back()*Cantera::GasConstant/gas->molecularWeight(k);
 
     for(size_t i=1; i<ngrd; i++) {
         gas->setState_TP(T_f[i], P);        // hsp depends on T but not on y
@@ -620,6 +662,29 @@ void flame::setFluxes() {
         for(size_t k=0; k<nsp; k++)
             flux_h[i] += flux_y[i][k]*hsp[k]*T_f[i]*Cantera::GasConstant/gas->molecularWeight(k);
     }
+
+    //---------- fluxes soot
+
+    if(doSoot) {                // thermophoretic
+        for(int k=0; k<nsoot; k++) {
+            if(isPremixed) {
+                flux_soot[0][k]    = 0.0;
+                flux_soot[ngrd][k] = mflux/density_f.back()*sootvars[ngrd-1][k] - 
+                                     0.556*sootvars[ngrd-1][k]*nu_f.back()/T_f.back()*
+                                     (T_f.back()-T.back())/dx.back()*2;
+            }
+            else {
+                flux_soot[0][k]    = -0.556*sootvars[0][k]*nu_f[0]/TLbc*(T[0]-TLbc)/dx[0]*2;
+                flux_soot[ngrd][k] = -0.556*sootvars[ngrd-1][k]*nu_f.back()/TRbc*(TRbc-T.back())/dx.back()*2;
+            }
+            for(int i=1; i<ngrd; i++) {
+                flux_soot[i][k] = 0.556*nu_f[i]*(T[i]-T[i-1])/T_f[i]*2/(dx[i-1]+dx[i]);
+                flux_soot[i][k] *= (flux_soot[i][k] > 0 ? -sootvars[i][k] : -sootvars[i-1][k]); // upwind
+                if(isPremixed) flux_soot[i][k] += mflux/density_f[i] * sootvars[i-1][k];        // upwind
+            }
+        }
+    }
+
 }
 
 ////////////////////////////////////////////////////////////////////////////////
