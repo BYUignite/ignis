@@ -1,4 +1,4 @@
-# Set an environment variable CMAKE_LIBRARY_PATH with paths for find_library to search
+# Set an environment variable CMAKE_PREFIX_PATH with paths for find_library etc to search
 # or add: HINTS "/path/to/lib/dir" at the end of the find_library call
 
 add_executable(flame.x)
