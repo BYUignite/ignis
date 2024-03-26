@@ -509,6 +509,7 @@ void flame::setFluxes() {
     vector<double> density(ngrd);
     vector<double> M(ngrd);
     vector<double> tcond(ngrd);
+    vector<double> nu; if(doSoot) nu.resize(ngrd);
     for(int i=0; i<ngrd; i++) {
         gas->setMassFractions_NoNorm(&y[i][0]);
         gas->setState_TP(T[i], P);
@@ -516,6 +517,8 @@ void flame::setFluxes() {
         M[i] = gas->meanMolecularWeight();
         trn->getMixDiffCoeffs(&D[i][0]);
         tcond[i] = trn->thermalConductivity();
+        if(doSoot)
+            nu[i] = trn->viscosity()/density[i];
     }
 
     //---------- interpolate to face center density and diffusivity
@@ -533,7 +536,7 @@ void flame::setFluxes() {
     density_f[0] = gas->density();
     M_f[0] = gas->meanMolecularWeight();
     trn->getMixDiffCoeffs(&D_f[0][0]);
-    tcond_f[l] = trn->thermalConductivity();
+    tcond_f[0] = trn->thermalConductivity();
     nu_f[0]    = trn->viscosity()/density_f[0];
     T_f[0] = TLbc;
     y_f[0] = yLbc;
@@ -555,8 +558,8 @@ void flame::setFluxes() {
         T_f.back()        = T.back()       +(T[ngrd-1]       - T[ngrd-2])      /(dx[ngrd-1]+dx[ngrd-2])*2.0*(L-x[ngrd-1]);
         M_f.back()        = M.back()       +(M[ngrd-1]       - M[ngrd-2])      /(dx[ngrd-1]+dx[ngrd-2])*2.0*(L-x[ngrd-1]);
         for(int k=0; k<nsp; k++) {
-            D_f.back()[i] = D.back()[i]    +(D[ngrd-1][k]    - D[ngrd-2][k])   /(dx[ngrd-1]+dx[ngrd-2])*2.0*(L-x[ngrd-1]);
-            y_f.back()[i] = y.back()[i]    +(y[ngrd-1][k]    - y[ngrd-2][k])   /(dx[ngrd-1]+dx[ngrd-2])*2.0*(L-x[ngrd-1]);
+            D_f.back()[k] = D.back()[k]    +(D[ngrd-1][k]    - D[ngrd-2][k])   /(dx[ngrd-1]+dx[ngrd-2])*2.0*(L-x[ngrd-1]);
+            y_f.back()[k] = y.back()[k]    +(y[ngrd-1][k]    - y[ngrd-2][k])   /(dx[ngrd-1]+dx[ngrd-2])*2.0*(L-x[ngrd-1]);
         }
         if(doSoot)
             nu_f.back()   = nu.back()      +(nu[ngrd-1]      - nu[ngrd-2])     /(dx[ngrd-1]+dx[ngrd-2])*2.0*(L-x[ngrd-1]);
@@ -761,8 +764,8 @@ int flame::Func(const double *vars, double *F) {
 
     //------------ set function values
 
-    //setFluxes();
-    setFluxesUnity();
+    setFluxes();
+    //setFluxesUnity();
 
     vector<double> Q(ngrd);
     if(doRadiation) setQrad(Q);
@@ -926,8 +929,8 @@ int flame::rhsf(const double *vars, double *dvarsdt) {
     }
 //------------ set rates dvarsdt (dvars/dt)
 
-    //setFluxes();
-    setFluxesUnity();
+    setFluxes();
+    //setFluxesUnity();
 
     vector<double> rr(nsp);
     vector<double> Q(ngrd);
