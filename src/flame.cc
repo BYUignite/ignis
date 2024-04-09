@@ -531,13 +531,12 @@ void flame::setFluxes() {
     vector<double> tcond_f(ngrd+1);
     vector<double> nu_f; if(doSoot) nu_f.resize(ngrd+1);
 
-
     gas->setState_TPY(TLbc, P, &yLbc[0]);   // this is only approximate for composition for premixed burner
     density_f[0] = gas->density();
     M_f[0] = gas->meanMolecularWeight();
     trn->getMixDiffCoeffs(&D_f[0][0]);
     tcond_f[0] = trn->thermalConductivity();
-    nu_f[0]    = trn->viscosity()/density_f[0];
+    if(doSoot) nu_f[0]    = trn->viscosity()/density_f[0];
     T_f[0] = TLbc;
     y_f[0] = yLbc;
 
@@ -553,6 +552,7 @@ void flame::setFluxes() {
             nu_f.back() = trn->viscosity()/density_f.back();
     }
     else {
+
         density_f.back()  = density.back() +(density[ngrd-1] - density[ngrd-2])/(dx[ngrd-1]+dx[ngrd-2])*2.0*(L-x[ngrd-1]);
         tcond_f.back()    = tcond.back()   +(tcond[ngrd-1]   - tcond[ngrd-2])  /(dx[ngrd-1]+dx[ngrd-2])*2.0*(L-x[ngrd-1]);
         T_f.back()        = T.back()       +(T[ngrd-1]       - T[ngrd-2])      /(dx[ngrd-1]+dx[ngrd-2])*2.0*(L-x[ngrd-1]);
