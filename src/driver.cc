@@ -17,18 +17,20 @@ int main() {
     auto csol = Cantera::newSolution("gri30.yaml");
     auto gas  = csol->thermo();
 
-    size_t ngrd = 40;
+    size_t ngrd = 80;
     double L = 0.1;
     double P = 101325;
 
-    double TLbc = 300.0;
+    double TLbc = 291.0;
     vector<double> yLbc(gas->nSpecies());
     yLbc[gas->speciesIndex("O2")] = 0.233;
     yLbc[gas->speciesIndex("N2")] = 0.767;
 
-    double TRbc = 300.0;
+    double TRbc = 294.0;
     vector<double> yRbc(gas->nSpecies());
-    yRbc[gas->speciesIndex("CH4")] = 1;
+    yRbc[gas->speciesIndex("CH4")] = 0.15637226;
+    yRbc[gas->speciesIndex("O2")]  = 0.19648868;
+    yRbc[gas->speciesIndex("N2")]  = 0.64713906;
 
     flame flm(ngrd, L, P, csol,
               yLbc, yRbc, TLbc, TRbc);
@@ -39,12 +41,13 @@ int main() {
 
     //---------------
 
-    double nTauSS     = 5;
+    double nTauSS     = 12;
     int    nsaveSS    = 1;
-    double nTauU      = 5;
+    double nTauU      = 12;
     int    nsaveU     = 10;
 
-    vector<double> Ls = {0.2, 0.04, 0.02, 0.008, 0.006, 0.004, 0.002};
+    //vector<double> Ls = {0.2, 0.04, 0.02, 0.008, 0.006, 0.004, 0.002, 0.0016, 0.0014, 0.00137, 0.00135}; // 0.00137 blows out by unsteady heat loss, 0.00135 blows out by strain
+    vector<double> Ls = {0.2, 0.04, 0.02, 0.008, 0.006, 0.004, 0.002, 0.0016, 0.0014, 0.00135};
     
     double Tmin, Tmax;
 
@@ -61,10 +64,13 @@ int main() {
 
         //----- if blows out, rerun, store as it blows out, else run unsteady with heat loss
 
-        if(*max_element(flm.T.begin(), flm.T.end()) < 1.05*min(TLbc, TRbc)) {
+        if(*max_element(flm.T.begin(), flm.T.end()) < 1.5*min(TLbc, TRbc)) {
             cout << endl << "Extinction for L=" << flm.L << endl;
             Tmin = *max_element(flm.T.begin(), flm.T.end());
             flm.setIC("stored");
+            stringstream ss; ss << "L_" << L << "S_" << setfill('0') << setw(3) << 0 << ".dat";
+            string fname = ss.str();
+            flm.writeFile(fname);
             flm.solveUnsteady(nTauU,  nsaveU, false, Tmin, Tmax);
         }
 
