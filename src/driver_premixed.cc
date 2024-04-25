@@ -16,7 +16,7 @@ using namespace soot;
 
 ///////////////////////////////////////////////////////////////////////////////
 
-int main() {
+int driver_premixed() {
     
     auto csol = Cantera::newSolution("gri30.yaml");
     auto gas  = csol->thermo();
