@@ -1,0 +1,42 @@
+
+isPremixed:    false        # flag for premixed or nonpremixed
+
+#-----------------
+
+ngrd:         40            # number of grid points
+L:             0.1          # domain length (m)
+nTauSS:       12.0          # number of diffusive mixing timescales to run to get to steady state
+nTauU:        12.0          # number of diffusive mixing timescales to run when solving unsteady profiles
+nsaveSS:       1            # number of save files when solving steady
+nsaveU:        10           # number of save files when solving unsteady profiles
+Ls:
+  - 0.2
+  - 0.04
+  - 0.02
+  - 0.008
+  - 0.006
+  - 0.004
+  - 0.002
+  - 0.0016
+  - 0.0014
+  - 0.00134                 # 0.00135 burns adiabatic SS, but blows out with radiation
+
+#-----------------
+
+P:        101325            # system pressure (Pa)
+LBC:                        # ISF flame 2, phi = 2.34
+    TLbc: 291.0
+    comp:                   # mole fractions (don't have to be normalized)
+        O2:   0.233
+        N2:   0.767
+RBC:                        # ISF flame 2, phi = 2.34
+    TRbc: 294.0
+    comp:                   # mole fractions (don't have to be normalized)
+        CH4:  0.15637226
+        O2:   0.19648868
+        N2:   0.64713906
+
+#-----------------
+
+doSoot:        false        # flag turn on/off radiation
+nsoot:         2            # number of soot variables

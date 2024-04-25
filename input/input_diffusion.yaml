@@ -1,0 +1,29 @@
+
+isPremixed:    false        # flag for premixed or nonpremixed
+
+#-----------------
+
+ngrd:         40            # number of grid points
+L:             0.04         # domain length (m)
+nTauSS:       12.0          # number of diffusive mixing timescales to run to get to steady state
+nsaveSS:       1            # number of save files when solving steady
+
+#-----------------
+
+P:        101325            # system pressure (Pa)
+LBC:                        # ISF flame 2, phi = 2.34
+    TLbc: 291.0
+    comp:                   # mole fractions (don't have to be normalized)
+        O2:   0.233
+        N2:   0.767
+RBC:                        # ISF flame 2, phi = 2.34
+    TRbc: 294.0
+    comp:                   # mole fractions (don't have to be normalized)
+        CH4:  0.15637226
+        O2:   0.19648868
+        N2:   0.64713906
+
+#-----------------
+
+doSoot:        false        # flag turn on/off radiation
+nsoot:         2            # number of soot variables
