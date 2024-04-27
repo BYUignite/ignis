@@ -13,6 +13,14 @@ using namespace std;
 using namespace soot;
 
 ///////////////////////////////////////////////////////////////////////////////
+///
+/// Driver to run diffusion flames for various domain sizes L and times t.
+/// Adiabatic steady state files at a given L, and for each of those, run unsteady with radiative loss.
+///   (except for cases that blows out due to strain.)
+/// These files can be used to make a lookup table.
+/// L and t can be mapped to progress variable and enthalpy.
+///
+///////////////////////////////////////////////////////////////////////////////
 
 int driver_diffusion_table() {
     
@@ -25,16 +33,16 @@ int driver_diffusion_table() {
 
     //---------------------
 
-    bool   isPremixed  = inputFile["isPremixed"].as<bool>();
+    bool isPremixed = inputFile["isPremixed"].as<bool>();
 
     //---------------------
 
-    size_t ngrd       = inputFile["ngrd"].as<size_t>();
-    double L          = inputFile["L"].as<double>();
-    double nTauSS     = inputFile["nTauSS"].as<double>();
-    double nTauU      = inputFile["nTauU"].as<double>();
-    int    nsaveSS    = inputFile["nsaveSS"].as<int>();
-    int    nsaveU     = inputFile["nsaveU"].as<int>();
+    size_t ngrd    = inputFile["ngrd"].as<size_t>();
+    double L       = inputFile["L"].as<double>();
+    double nTauSS  = inputFile["nTauSS"].as<double>();
+    double nTauU   = inputFile["nTauU"].as<double>();
+    int    nsaveSS = inputFile["nsaveSS"].as<int>();
+    int    nsaveU  = inputFile["nsaveU"].as<int>();
 
     vector<double> Ls;
     for(size_t i=0; i<inputFile["Ls"].size(); i++)
@@ -58,8 +66,8 @@ int driver_diffusion_table() {
 
     //--------------------- soot
 
-    bool   doSoot      = inputFile["doSoot"].as<bool>();
-    size_t nsoot       = doSoot ? inputFile["nsoot"].as<size_t>() : 0;
+    bool   doSoot = inputFile["doSoot"].as<bool>();
+    size_t nsoot  = doSoot ? inputFile["nsoot"].as<size_t>() : 0;
 
     shared_ptr<sootModel> SM;
     shared_ptr<state>     SMstate;
@@ -83,7 +91,7 @@ int driver_diffusion_table() {
 
     //---------------------
 
-    bool   doEnergyEqn = true;
+    bool doEnergyEqn = true;
 
     //=====================
 

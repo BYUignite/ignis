@@ -5,8 +5,10 @@
 using namespace std;
 
 ///////////////////////////////////////////////////////////////////////////////
-/** Constructor
- */
+///
+/// Constructor
+///
+///////////////////////////////////////////////////////////////////////////////
 
 streams::streams(shared_ptr<Cantera::Solution> csol,
                  const double _P, 
@@ -39,13 +41,14 @@ streams::streams(shared_ptr<Cantera::Solution> csol,
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/** Computes the temperature, enthalpy, and composition of mixing among streams.
- *
- *  @param mixf \input mixture fraction, defines elemental composition.
- *  @param ymix \output mass fractions of products of complete combustion.
- *  @param hmix \output enthalpy of products of complete combustion.
- *  @param Tmix \output temperature of products of complete combustion.
- */
+/// Computes the temperature, enthalpy, and composition of mixing among streams.
+///
+/// @param mixf \input mixture fraction, defines elemental composition.
+/// @param ymix \output mass fractions of products of complete combustion.
+/// @param hmix \output enthalpy of products of complete combustion.
+/// @param Tmix \output temperature of products of complete combustion.
+///
+///////////////////////////////////////////////////////////////////////////////
 
 void streams::getMixingState(const double mixf, vector<double> &ymix,
                              double &hmix, double &Tmix) {
@@ -61,13 +64,14 @@ void streams::getMixingState(const double mixf, vector<double> &ymix,
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/** Computes the temperature, enthalpy, and composition of equilibrium at the given mixf.
- *
- *  @param mixf \input mixture fraction, defines elemental composition.
- *  @param yeq \output mass fractions
- *  @param heq \output enthalpy
- *  @param Teq \output temperature
- */
+/// Computes the temperature, enthalpy, and composition of equilibrium at the given mixf.
+///
+/// @param mixf \input mixture fraction, defines elemental composition.
+/// @param yeq  \output mass fractions
+/// @param heq  \output enthalpy
+/// @param Teq  \output temperature
+///
+///////////////////////////////////////////////////////////////////////////////
 
 void streams::getEquilibrium_HP(const double mixf, vector<double> &yeq,
                                       double &heq, double &Teq) {
@@ -90,13 +94,14 @@ void streams::getEquilibrium_HP(const double mixf, vector<double> &yeq,
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/** Computes the enthalpy, and composition of equilibrium at the given mixf for given T
- *
- *  @param mixf \input mixture fraction, defines elemental composition.
- *  @param Teq \input temperature
- *  @param yeq \output mass fractions
- *  @param heq \output enthalpy
- */
+/// Computes the enthalpy, and composition of equilibrium at the given mixf for given T
+///
+/// @param mixf \input mixture fraction, defines elemental composition.
+/// @param Teq  \input temperature
+/// @param yeq  \output mass fractions
+/// @param heq  \output enthalpy
+///
+///////////////////////////////////////////////////////////////////////////////
 
 void streams::getEquilibrium_TP(const double mixf, double Teq, 
                                       vector<double> &yeq, double &heq ) {
@@ -117,14 +122,15 @@ void streams::getEquilibrium_TP(const double mixf, double Teq,
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/** Computes the temperature, enthalpy, and composition of complete combustion at the given mixf.
- *  For nonpremixed flames (don't do anything funny, like have oxygen in the fuel stream)
- *
- *  @param mixf \input mixture fraction, defines elemental composition.
- *  @param ypcc \output mass fractions of products of complete combustion.
- *  @param hpcc \output enthalpy of products of complete combustion.
- *  @param Tpcc \output temperature of products of complete combustion.
- */
+/// Computes the temperature, enthalpy, and composition of complete combustion at the given mixf.
+/// For nonpremixed flames (don't do anything funny, like have oxygen in the fuel stream)
+///
+/// @param mixf \input mixture fraction, defines elemental composition.
+/// @param ypcc \output mass fractions of products of complete combustion.
+/// @param hpcc \output enthalpy of products of complete combustion.
+/// @param Tpcc \output temperature of products of complete combustion.
+///
+///////////////////////////////////////////////////////////////////////////////
 
 void streams::getProdOfCompleteComb(const double mixf, vector<double> &ypcc,
                                     double &hpcc, double &Tpcc) {
@@ -224,7 +230,10 @@ void streams::getProdOfCompleteComb(const double mixf, vector<double> &ypcc,
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/** Set the stoichiometric mixture fraction using Bilger's definition */
+///
+/// Set the stoichiometric mixture fraction using Bilger's definition */
+///
+///////////////////////////////////////////////////////////////////////////////
 
 void streams::setStoicMixf() {
 
@@ -256,10 +265,12 @@ void streams::setStoicMixf() {
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/** Sets the elements to have the correct Mass Fractions based on the specified array.
- *  @param y \input mass fraction array to use to get corresponding element fractions.
- *  @return vector of element mass fractions.
- */
+/// Sets the elements to have the correct Mass Fractions based on the specified array.
+///
+/// @param y \input mass fraction array to use to get corresponding element fractions.
+/// @return vector of element mass fractions.
+///
+///////////////////////////////////////////////////////////////////////////////
 
 vector<double> streams::getElementMassFracs(const double *y) {
 
@@ -271,13 +282,15 @@ vector<double> streams::getElementMassFracs(const double *y) {
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/** Get amount of moles for each element.
- *  @param x \input pointer to vector of species mole fractions.
- *  @param nOnotFromO2 \input number of moles of oxygen not from O2 (oxygen in the base fuel).
- *  @param nHnotFromH2O \input number of moles of hydrogen not from H2O.
- *  @param nCnotFromCO2 \input number of moles of carbon not from CO2.
- *  @return vector of element moles.
- */
+/// Get amount of moles for each element.
+///
+/// @param x            \input pointer to vector of species mole fractions.
+/// @param nOnotFromO2  \input number of moles of oxygen not from O2 (oxygen in the base fuel).
+/// @param nHnotFromH2O \input number of moles of hydrogen not from H2O.
+/// @param nCnotFromCO2 \input number of moles of carbon not from CO2.
+/// @return vector of element moles.
+///
+///////////////////////////////////////////////////////////////////////////////
 
 vector<double> streams::getElementMoles(const double *x,
                                         double &nOnotFromO2,
@@ -311,14 +324,15 @@ vector<double> streams::getElementMoles(const double *x,
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/**Compute the mixture fraction from the mass fractions using Bilger's mixf.
- * Set doBeta01=true on first call to initialize members beta0, beta1.
- * Later calls of this function only use the first parameter.
- *
- * @param y \input vector of species mass fractions.
- * @param doBeta01 \input flag=true on first call to set members beta0, beta1.
- * @return mixture fraction
- */
+/// Compute the mixture fraction from the mass fractions using Bilger's mixf.
+/// Set doBeta01=true on first call to initialize members beta0, beta1.
+/// Later calls of this function only use the first parameter.
+///
+/// @param y        \input vector of species mass fractions.
+/// @param doBeta01 \input flag=true on first call to set members beta0, beta1.
+/// @return mixture fraction
+///
+///////////////////////////////////////////////////////////////////////////////
 
 double streams::getMixtureFraction(const double *y, const bool doBeta01) {
 
@@ -349,6 +363,4 @@ double streams::getMixtureFraction(const double *y, const bool doBeta01) {
         return 0.0;            // to avoid division by zero
     else
         return (beta - beta0)/(beta1 - beta0);
-
 }
-

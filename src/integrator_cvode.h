@@ -6,9 +6,14 @@
 #include <nvector/nvector_serial.h>    // access to serial N_Vector
 #include <sunmatrix/sunmatrix_dense.h> // access to dense SUNMatrix
 #include <sunlinsol/sunlinsol_dense.h> // access to dense SUNLinearSolver
-#include <sunmatrix/sunmatrix_band.h> // access to dense SUNMatrix
-#include <sunlinsol/sunlinsol_band.h> // access to dense SUNLinearSolver
+#include <sunmatrix/sunmatrix_band.h>  // access to dense SUNMatrix
+#include <sunlinsol/sunlinsol_band.h>  // access to dense SUNLinearSolver
 
+////////////////////////////////////////////////////////////////////////////////
+///
+/// Inferface class for CVODE ODE integrator.
+/// Header only
+///
 ////////////////////////////////////////////////////////////////////////////////
 
 class integrator_cvode {
@@ -17,17 +22,31 @@ public:
 
 //////////////////// DATA MEMBERS ////////////////////
 
-    SUNContext      sun;           // sundials object
-    void           *cmem;         // cvode object
-    N_Vector        vars;             // vector of variables being solved
-    N_Vector        atol;          // vector atol (for each variable)
-    realtype        rtol;          // scalar rtol
-    unsigned        nvar;           // number of equations being solved
-    SUNMatrix       J;             // matrix for linear solver
-    SUNLinearSolver LS;            // linear solver
-    int             rv;            // return value: checking status of calls
+    SUNContext      sun;           ///< sundials object
+    void           *cmem;          ///< cvode object
+    N_Vector        vars;          ///< vector of variables being solved
+    N_Vector        atol;          ///< vector atol (absolute tolerance, for each variable)
+    realtype        rtol;          ///< scalar rtol (relative tolerance)
+    unsigned        nvar;          ///< number of equations being solved
+    SUNMatrix       J;             ///< matrix for linear solver
+    SUNLinearSolver LS;            ///< linear solver
+    int             rv;            ///< return value: checking status of calls
 
 //////////////////// MEMBER FUNCTIONS ////////////////////
+
+//////////////////////////////////////////////////////////
+///
+/// Constructor function
+/// @param Func       \input pointer to right-hand-side function (rates) for the problem being solved
+/// @param _user_data \inout point to user's class object with data and functions needed to compute the rates
+/// @param _nvar      \input number of variables being solved
+/// @param _rtol      \input relative tolerance for all variables
+/// @param _atol      \input vector of absolute tolerances for all variables
+/// @param mu         \input location of upper diagonal in the banded matrix for solution
+/// @param ml         \input location of lower diagonal in the banded matrix for solution
+/// @param y          \input initial condition of variables
+///
+//////////////////////////////////////////////////////////
 
 integrator_cvode(
                  int (*Func)(realtype, N_Vector, N_Vector, void*),
@@ -61,7 +80,13 @@ integrator_cvode(
     rv   = CVodeSetLinearSolver(cmem, LS, J);  // associate matrix J and solver LS
 }
 
-//--------------
+//////////////////////////////////////////////////////////
+///
+/// Main interface: integrate the ODE system
+/// @param y  \inout vector of variables being solved (and initial condition)
+/// @param dt \input time to intigrate for.
+///
+//////////////////////////////////////////////////////////
 
 int integrate(std::vector<double> &y, const realtype dt) {
 
@@ -79,7 +104,11 @@ int integrate(std::vector<double> &y, const realtype dt) {
     return rv;
 }
 
-//--------------
+//////////////////////////////////////////////////////////
+///
+/// Destructor, cleans up CVODE objects
+///
+//////////////////////////////////////////////////////////
 
 ~integrator_cvode() {
 

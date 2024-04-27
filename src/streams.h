@@ -7,16 +7,15 @@
 #include <memory>
 
 ////////////////////////////////////////////////////////////////////////////////
-
-/** Class implementing streams for use in mixing and or reaction problems.
- *  This is writting in terms of mixture fraction with streams defined in an
- *  input file.  The class can implement products of complete combustion, or
- *  equilibrium (through the Cantera IdealGasPhase object, if desired).
- *  This class holds a pointer to a Cantera IdealGasPhase object (defined up front
- *  in main) that computes thermodynamic, kinetic, and transport data.
- *
- *  @author David O. Lignell
- */
+///
+/// Class implementing streams for use in mixing and or reaction problems.
+/// This is writting in terms of mixture fraction with streams defined in an
+/// input file.  The class can implement products of complete combustion, or
+/// equilibrium (through the Cantera IdealGasPhase object, if desired).
+/// This class holds a pointer to a Cantera IdealGasPhase object (defined up front
+/// in main) that computes thermodynamic, kinetic, and transport data.
+///
+////////////////////////////////////////////////////////////////////////////////
 
 class streams {
 

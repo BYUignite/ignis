@@ -20,6 +20,23 @@ int Func_kinsol(N_Vector varsKS, N_Vector fvec, void *user_data);
 int rhsf_cvode(realtype t, N_Vector varsCV, N_Vector dvarsdtCV, void *user_data);
 
 ////////////////////////////////////////////////////////////////////////////////
+///
+/// Constructor function
+/// @param _isPremixed  \input flag indicating if running a premixed or diffusion flame
+/// @param _doEnergyEqn \input flag indicating if solving the energy equation or using a given T profile (for premixed flames)
+/// @param _doSoot      \input flag indicating if solving with soot
+/// @param _ngrd        \input number of interior grid points
+/// @param _L           \input domain size (m)
+/// @param _P           \input system pressure (Pa)
+/// @param csol         \input Cantera Solution object (used to set gas, kin, trn)
+/// @param _yLbc        \input mass fractions on left boundary
+/// @param _yRbc        \input mass fractions on right boundary (not used for premixed flames)
+/// @param _TLbc        \input temperature (K) on left boundary
+/// @param _TRbc        \input temperature (K) on right boundary (not used for premixed flames)
+/// @param _SM          \input soot model object
+/// @param _SMstate     \input soot model state object (gas and soot properties for input to SM)
+///
+////////////////////////////////////////////////////////////////////////////////
 
 flame::flame(const bool _isPremixed, 
              const bool _doEnergyEqn,
@@ -92,11 +109,17 @@ flame::flame(const bool _isPremixed,
     //---------- radiation object
 
     doRadiation = false;
-    planckmean  = new rad_planck_mean();
+
+    radProps = make_shared<rad_planck_mean>();  // set even if doRadiation is false, since we switch it on/off for some cases
 
     Ttarget = 0.0;
 }
 
+////////////////////////////////////////////////////////////////////////////////
+///
+/// Set spatial grid (x and dx)
+/// @param _L \input domain length (resets class data member L, so cases can be run with different L)
+///
 ////////////////////////////////////////////////////////////////////////////////
 
 void flame::setGrid(double _L) {
@@ -131,8 +154,13 @@ void flame::setGrid(double _L) {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+/// 
+///  Write output file
+///  @param fname \input write output to this file name (includes path)
+/// 
+////////////////////////////////////////////////////////////////////////////////
 
-void flame::writeFile(string fname) {
+void flame::writeFile(const string fname) {
 
     //-------------- compute auxiliary quantities
 
@@ -246,6 +274,11 @@ void flame::writeFile(string fname) {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+///
+/// Store system state so that we can use this state later as an initial condition.
+/// See setIC
+///
+////////////////////////////////////////////////////////////////////////////////
 
 void flame::storeState() {
 
@@ -256,8 +289,14 @@ void flame::storeState() {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+///
+/// Set initial condition for solution (or initial guess for steady solvers).
+/// @param icType \input string indicating the type of the initial condition to use
+/// @param fname \input read input from this file name (defaults to empty string)
+///
+////////////////////////////////////////////////////////////////////////////////
 
-void flame::setIC(std::string icType, string fname) {
+void flame::setIC(const std::string icType, string fname) {
 
     if (icType == "linear") {
         gas->setState_TPY(TLbc, P, &yLbc[0]);
@@ -355,7 +394,12 @@ void flame::setIC(std::string icType, string fname) {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// assuming unity Le for all species
+///
+/// Compute fluxes for all transported variables assuming unity Lewis numbers for energy and species.
+/// Soot uses a thermophoretic flux.
+/// Only called if doLe1 is false (the default).
+///
+////////////////////////////////////////////////////////////////////////////////
 
 void flame::setFluxesUnity() {
 
@@ -499,8 +543,13 @@ void flame::setFluxesUnity() {
      }*/
 }
 
-//////////////////////////////////////////////////////////////////////////////////
-////  Non-unity Le for all species
+////////////////////////////////////////////////////////////////////////////////
+///
+/// Compute fluxes for all transported variables assuming mixture-averaged transport for species and energy.
+/// Soot uses a thermophoretic flux.
+/// Only called if doLe1 is false (the default).
+///
+////////////////////////////////////////////////////////////////////////////////
 
 void flame::setFluxes() {
 
@@ -691,7 +740,13 @@ void flame::setFluxes() {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// assumes y, T are initialized
+///
+/// Solve steady state problem. Uses Sundials Kinsol.
+/// It is more robust to solve the unsteady problem to steady state.
+/// Solves F(vars) = 0, where vars are the vector of variables at all grid points 
+///   and F is the equation for each of them. See flame::Func.
+///
+////////////////////////////////////////////////////////////////////////////////
 
 void flame::solveSS() {
 
@@ -751,6 +806,13 @@ void flame::solveSS() {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+///
+/// System of equations solved by the steady solver, F(vars) = 0
+/// @param vars \input pointer to array of variables at every grid point.
+/// @param F    \output pointer to array of function values for each variable at each grid point
+/// 1D vectors are accessed by convenience function Ia(igrid, kvar), as in vars[Ia(i,k)].
+///
+////////////////////////////////////////////////////////////////////////////////
 
 int flame::Func(const double *vars, double *F) {
 
@@ -798,7 +860,14 @@ int flame::Func(const double *vars, double *F) {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// Kinsol interface; Kinsol calls this function, which then calls user_data's Func 
+///
+/// Kinsol interface function. 
+/// Kinsol calls this function, which then calls user_data's Func.
+/// @param varsKS    \input vector of all variables at all grid points (KS for KinSol).
+/// @param fvec      \output vector of all variables at all grid points.
+/// @param user_data \inout pointer to user data ("this" flame object).
+///
+////////////////////////////////////////////////////////////////////////////////
 
 int Func_kinsol(N_Vector varsKS, N_Vector fvec, void *user_data) {
 
@@ -812,12 +881,11 @@ int Func_kinsol(N_Vector varsKS, N_Vector fvec, void *user_data) {
     return rv;
 }
 
-
-
-
-
-
-
+////////////////////////////////////////////////////////////////////////////////
+///
+/// Set radiative source term for the energy equation.
+/// @param Q \output source term at each grid point (W/m3)
+///
 ////////////////////////////////////////////////////////////////////////////////
 
 void flame::setQrad(vector<double> &Q) {
@@ -836,19 +904,29 @@ void flame::setQrad(vector<double> &Q) {
         xCO = y[i][isp]/gas->molecularWeight(isp)*gas->meanMolecularWeight();
         isp = gas->speciesIndex("CH4"); 
         xCH4 = y[i][isp]/gas->molecularWeight(isp)*gas->meanMolecularWeight();
-        planckmean->get_k_a(kabs, awts, T[i], P, fvsoot, xH2O, xCO2, xCO, xCH4);
+        radProps->get_k_a(kabs, awts, T[i], P, fvsoot, xH2O, xCO2, xCO, xCH4);
 
         Q[i] = -4.0*rad::sigma*kabs[0]*(pow(T[i],4.0) - pow(TLbc,4.0));
     }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// assumes y, T are initialized
-// Two modes: write on every time step of size dt, or write on temperature steps of size dT
-// Default is in time --> Tmin, Tmax are zero --> dT = 0
-// Lwrite = true (default) --> write in time;
+///
+/// Solve unsteady flame problems.
+/// Assumes y, T are initialized
+/// Two modes: write on every time step of size dt, or write on temperature steps of size dT.
+/// Default is in time --> Tmin, Tmax are zero --> dT = 0
+/// 
+/// @param nTauRun     \input number of characteristic times to solve for.
+/// @param nSteps      \input number of steps to take during the solution.
+/// @param doWriteTime \input if true (default) then write solution in time
+/// @param Tmin        \input minimum temperature (default is 0, see code) (for stepping to desired T)
+/// @param Tmax        \input maximum temperature (default is 0, see code) (for stepping to desired T)
+///
+////////////////////////////////////////////////////////////////////////////////
 
-void flame::solveUnsteady(double nTauRun, int nSteps, bool LwriteTime, double Tmin, double Tmax) {
+void flame::solveUnsteady(const double nTauRun, const int nSteps, const bool doWriteTime, 
+                          const double Tmin, const double Tmax) {
 
     //---------- transfer variables into single array
     vector<double> vars(nvarA);
@@ -891,7 +969,7 @@ void flame::solveUnsteady(double nTauRun, int nSteps, bool LwriteTime, double Tm
 
     for(int istep=1; istep<=nSteps; istep++, t+=dt) {
         integ.integrate(vars, dt);
-        if(LwriteTime && dT <= 0.0) {           // write in time; (write in Temp is in rhsf)
+        if(doWriteTime && dT <= 0.0) {           // write in time; (write in Temp is in rhsf)
             stringstream ss; ss << "L_" << L << "U_" << setfill('0') << setw(3) << isave++ << ".dat";
             string fname = ss.str();
             writeFile(fname);
@@ -914,6 +992,12 @@ void flame::solveUnsteady(double nTauRun, int nSteps, bool LwriteTime, double Tm
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+///
+/// Right hand side function for unsteady solver, as in dvar/dt = rhsf(var)
+/// @param vars    \input current value of variables at each grid point
+/// @param dvarsdt \output rate of each variable at each grid point
+///
+////////////////////////////////////////////////////////////////////////////////
 
 int flame::rhsf(const double *vars, double *dvarsdt) {
 
@@ -929,7 +1013,8 @@ int flame::rhsf(const double *vars, double *dvarsdt) {
         }
         T[i] = vars[Ia(i,nvar-1)]*Tscale;      // dolh comment to remove h
     }
-//------------ set rates dvarsdt (dvars/dt)
+
+    //------------ set rates dvarsdt (dvars/dt)
 
     if(doLe1)
         setFluxesUnity();
@@ -1003,7 +1088,14 @@ int flame::rhsf(const double *vars, double *dvarsdt) {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// CVODE interface; CVODE calls this function, which then calls user_data's rhsf 
+///
+/// CVODE interface; CVODE calls this function, which then calls user_data's rhsf 
+/// @param t         \input current time (not used here as there are no explicit time dependencies, like S(t)
+/// @param varsCV    \input cvode variables (all vars at all grid points)
+/// @param dvarsdtCV \output cvode rates of all variables (all vars at all grid points)
+/// @param user_data \inout pointer to user data ("this" flame object).
+///
+////////////////////////////////////////////////////////////////////////////////
 
 int rhsf_cvode(realtype t, N_Vector varsCV, N_Vector dvarsdtCV, void *user_data) {
     flame *flm = static_cast<flame *>(user_data);

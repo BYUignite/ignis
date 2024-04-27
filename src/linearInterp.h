@@ -4,26 +4,34 @@
 #include <cstdlib>
 #include <iostream>
 
-//-----------------------------
+///////////////////////////////////////////////////////////////////////////////
+///
+/// Linear interpolation class (one-dimensional)
+/// Header-only class
+///
+///////////////////////////////////////////////////////////////////////////////
 
 class linearInterp {
 
     public:
 
-        std::vector<double> *X;
-        std::vector<double> *Y;
+        std::vector<double> *X;         ///< abscissas for Y(X)
+        std::vector<double> *Y;         ///< ordinate values for Y(X)
 
-        int nxy;
+        int nxy;                        ///< number of grid points
 
     private:
 
-        int ilo;
-        int ihi;
+        int ilo;                        ///< lower of adjacent bounding grid points for desired interpolation point
+        int ihi;                        ///< upper of adjacent bounding grid points for desired interpolation point
 
         //////////////////////////////////////////////////////////////////
 
     public:
 
+        /// Interpolation function for arbitrary point x.
+        /// @param x \input grid value we are interpolating to (abscissa)
+        /// @return interpolated value y(x)
         double interp(double x){
             set_bounding_indicies(x);
             return (*Y)[ilo] + (x-(*X)[ilo])*((*Y)[ihi]-(*Y)[ilo])/((*X)[ihi]-(*X)[ilo]);
@@ -31,6 +39,8 @@ class linearInterp {
 
     private: 
 
+        /// find values of ilo and ihi using a search algorithm from stl
+        /// @param x \input grid value we are interpolating to (abscissa)
         void set_bounding_indicies(double x){
             if(x <= (*X)[0])
                 ihi = 1;
@@ -49,11 +59,15 @@ class linearInterp {
 
         //------------- constructors
 
+        /// Default (empty) constructor
         linearInterp(){}
 
-        linearInterp(std::vector<double> &X_p, std::vector<double> &Y_p){
-            X = &X_p;
-            Y = &Y_p;
+        /// constructor function
+        /// @param _X grid of abscissas forming the basis for interpolation
+        /// @param _Y grid of ordinate values _Y(_X) forming the basis for interpolation
+        linearInterp(std::vector<double> &_X, std::vector<double> &_Y){
+            X = &_X;
+            Y = &_Y;
             nxy = (*X).size();
             if((*X).size()!=(*Y).size()){
                 std::cout << std::endl << "Error in interp_linear: X, Y need same size" << std::endl;
@@ -69,6 +83,5 @@ class linearInterp {
                     exit(0);
                 }
         }
-
 };
 

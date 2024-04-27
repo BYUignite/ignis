@@ -13,6 +13,10 @@ using namespace std;
 using namespace soot;
 
 ///////////////////////////////////////////////////////////////////////////////
+///
+/// Driver for a simple diffusion flame.
+///
+///////////////////////////////////////////////////////////////////////////////
 
 int driver_diffusion() {
     
@@ -25,14 +29,14 @@ int driver_diffusion() {
 
     //---------------------
 
-    bool   isPremixed  = inputFile["isPremixed"].as<bool>();
+    bool isPremixed = inputFile["isPremixed"].as<bool>();
 
     //---------------------
 
-    size_t ngrd       = inputFile["ngrd"].as<size_t>();
-    double L          = inputFile["L"].as<double>();
-    double nTauSS     = inputFile["nTauSS"].as<double>();
-    int    nsaveSS    = inputFile["nsaveSS"].as<int>();
+    size_t ngrd    = inputFile["ngrd"].as<size_t>();
+    double L       = inputFile["L"].as<double>();
+    double nTauSS  = inputFile["nTauSS"].as<double>();
+    int    nsaveSS = inputFile["nsaveSS"].as<int>();
 
     vector<double> Ls;
     for(size_t i=0; i<inputFile["Ls"].size(); i++)
@@ -56,8 +60,8 @@ int driver_diffusion() {
 
     //--------------------- soot
 
-    bool   doSoot      = inputFile["doSoot"].as<bool>();
-    size_t nsoot       = doSoot ? inputFile["nsoot"].as<size_t>() : 0;
+    bool   doSoot = inputFile["doSoot"].as<bool>();
+    size_t nsoot  = doSoot ? inputFile["nsoot"].as<size_t>() : 0;
 
     shared_ptr<sootModel> SM;
     shared_ptr<state>     SMstate;

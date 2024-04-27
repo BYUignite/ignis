@@ -14,85 +14,93 @@
 #include <string>
 
 ///////////////////////////////////////////////////////////////////////////////
+///
+/// One-dimensional flame solver: burner stabilized premixed and diffusion flames
+/// Premixed flames can use a fixed temperature profile, or solve the energy equation.
+/// Diffusion flames are diffusion only, with Dirichlet boundary conditions.
+///   Flame stain occurs through the domain length.
+///
+///////////////////////////////////////////////////////////////////////////////
 
 class flame {
 
 public:
 
-    size_t ngrd;
-    size_t nsp;
-    size_t nsoot;
-    size_t nvar;
-    size_t nvarA;
+    size_t ngrd;                                    ///< number of interior grid points
+    size_t nsp;                                     ///< number of gas species
+    size_t nsoot;                                   ///< number of soot variables
+    size_t nvar;                                    ///< number of transported variables at each grid point
+    size_t nvarA;                                   ///< nvar * ngrd
 
-    double                            P;
-    std::vector<std::vector<double> > y;           // y[igrid][isp]
-    std::vector<double>               T;
-    std::vector<std::vector<double> > sootvars;    // [igrid][isoot]: soot variables: moments or sections
+    double                            P;            ///< system pressure, uniform (Pa)
+    std::vector<std::vector<double> > y;            ///< mass fractions: y[igrid][isp] 
+    std::vector<double>               T;            ///< temperature (K)
+    std::vector<std::vector<double> > sootvars;     ///< soot moments or sections; sootvars[igrid][isoot]
 
-    double                            Pstore;
-    std::vector<std::vector<double> > ystore;      // [igrid][isp]
-    std::vector<double>               Tstore;
-    std::vector<std::vector<double> > sootstore;   // [igrid][isoot]
+    double                            Pstore;       ///< stored system pressure (for initializing from stored state)
+    std::vector<std::vector<double> > ystore;       ///< stored mass fractions
+    std::vector<double>               Tstore;       ///< stored temperature
+    std::vector<std::vector<double> > sootstore;    ///< stored soot variables
 
-    std::vector<double> yLbc, yRbc;
-    double TLbc, TRbc;
-    double hLbc, hRbc;
+    std::vector<double> yLbc, yRbc;                 ///< y boundary values: left and right (as needed)
+    double TLbc, TRbc;                              ///< T boundary values: left and right (as needed)
+    double hLbc, hRbc;                              ///< h boundary values: left and right (as needed)
 
-    double              L;
-    std::vector<double> x;
-    std::vector<double> dx;
+    double              L;                          ///< domain size (m)
+    std::vector<double> x;                          ///< grid position values (m)
+    std::vector<double> dx;                         ///< grid spacing (m), nonuniform is fine
 
-    double Tscale;
-    double hscale;
-    std::vector<double> sootScales;
+    double Tscale;                                  ///< scaling value for temperature (for solvers)
+    double hscale;                                  ///< scaling value for enthalpy (for solvers)
+    std::vector<double> sootScales;                 ///< scaling value for soot variables (for solvers)
 
-    std::vector<double> vars0;
-    std::vector<double> F0;
-    double s;
+    std::vector<double> vars0;                      ///< for homotopy approaches
+    std::vector<double> F0;                         ///< for homotopy approaches
+    double s;                                       ///< homotopy variable
 
-    std::shared_ptr<Cantera::ThermoPhase> gas;
-    std::shared_ptr<Cantera::Kinetics>    kin;
-    std::shared_ptr<Cantera::Transport>   trn;
+    std::shared_ptr<Cantera::ThermoPhase> gas;      ///< Cantera thermo object
+    std::shared_ptr<Cantera::Kinetics>    kin;      ///< Cantera kinetics object
+    std::shared_ptr<Cantera::Transport>   trn;      ///< Cantera transport object
 
-    std::shared_ptr<streams> strm;
-    rad  *planckmean;
-    bool doRadiation;
+    std::shared_ptr<streams> strm;                  ///< streams object (mixture fraction, etc.)
+    std::shared_ptr<rad> radProps;                  ///< radiation object
+    bool doRadiation;                               ///< radiation flag
 
-    bool doLe1 = false;                            // true if doing unity Lewis numbers (default false)  
+    bool doLe1 = false;                             ///< true if doing unity Lewis numbers (default false)  
 
-    double Ttarget;
-    double dT;
-    int isave;
+    double Ttarget;                                 ///< for unsteady cases, run until this max T instead of for a given time
+    double dT;                                      ///< delta T increment for unsteady cases
+    int isave;                                      ///< file counter for save during unsteady cases
 
-    std::vector<std::vector<double> > flux_y;      // [I(igrid, ksp)]
-    std::vector<std::vector<double> > flux_soot;   // [I(igrid, ksoot)]
-    std::vector<double>               flux_h;      // [igrid]
+    std::vector<std::vector<double> > flux_y;       ///< species fluxes: [I(igrid, ksp)]    I(igrid,ksp) maps 2D onto 1D
+    std::vector<std::vector<double> > flux_soot;    ///< species fluxes: [I(igrid, ksoot)]
+    std::vector<double>               flux_h;       ///< species fluxes: [igrid]
 
-    bool   isPremixed = false;
-    double mflux = 0.0;
+    bool   isPremixed = false;                      ///< true of the case is a premixed flame, (only left boundary condition, constant mass flux through domain)
+    double mflux = 0.0;                             ///< premixed flame mass flux (kg/m2*s)
 
-    bool doEnergyEqn = true;
-    std::shared_ptr<linearInterp> LI;
-    std::vector<double> Tprof_h;
-    std::vector<double> Tprof_T;
+    bool doEnergyEqn = true;                        ///< for premixed flames: can solve energy equation or set T profile
+    std::shared_ptr<linearInterp> LI;               ///< interpolator for specified temperature profiles
+    std::vector<double> Tprof_h;                    ///< temperature profile position (h is height above burner (m))
+    std::vector<double> Tprof_T;                    ///< temperature profile T values
 
     //---------------------
 
-    bool doSoot = false;
-    std::shared_ptr<soot::sootModel> SM;
-    std::shared_ptr<soot::state>     SMstate;
+    bool doSoot = false;                            ///< soot flag
+    std::shared_ptr<soot::sootModel> SM;            ///< soot model
+    std::shared_ptr<soot::state>     SMstate;       ///< holds state variables (gas and soot) for soot model
 
     ////////////////////// member functions
 
-    void setIC(std::string icType, std::string fname="");
+    void setIC(const std::string icType, const std::string fname="");
     void storeState();
     void setFluxesUnity();
     void setFluxes();
     void setGrid(double _L);
-    void writeFile(std::string fname);
+    void writeFile(const std::string fname);
     void solveSS();
-    void solveUnsteady(double nTauRun, int nsteps, bool LwriteTime=true, double Tmin=0, double Tmax=0);
+    void solveUnsteady(const double nTauRun, const int nsteps, const bool doWriteTime=true, 
+                       const double Tmin=0, const double Tmax=0);
     int  Func(const double *vars, double *F);
     int  rhsf(const double *vars, double *dvarsdt);
     void setQrad(std::vector<double> &Q);
@@ -115,7 +123,4 @@ public:
           std::shared_ptr<soot::sootModel> _SM, 
           std::shared_ptr<soot::state>     _SMstate);
 
-    ~flame() {
-        delete planckmean;
-    }
 };

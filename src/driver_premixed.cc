@@ -15,6 +15,10 @@ using namespace std;
 using namespace soot;
 
 ///////////////////////////////////////////////////////////////////////////////
+///
+/// Driver for a burner stabilized premixed flame
+///
+///////////////////////////////////////////////////////////////////////////////
 
 int driver_premixed() {
     
@@ -27,7 +31,7 @@ int driver_premixed() {
 
     //---------------------
 
-    bool   isPremixed  = inputFile["isPremixed"].as<bool>();
+    bool isPremixed = inputFile["isPremixed"].as<bool>();
 
     //---------------------
 
@@ -38,8 +42,8 @@ int driver_premixed() {
 
     //---------------------
 
-    bool   doSoot      = inputFile["doSoot"].as<bool>();
-    size_t nsoot       = doSoot ? inputFile["nsoot"].as<size_t>() : 0;
+    bool   doSoot = inputFile["doSoot"].as<bool>();
+    size_t nsoot  = doSoot ? inputFile["nsoot"].as<size_t>() : 0;
 
     shared_ptr<sootModel> SM;
     shared_ptr<state>     SMstate;
