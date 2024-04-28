@@ -1,4 +1,4 @@
-#include "flame.h"
+#include "fuego.h"
 #include "cantera/base/Solution.h"
 #include "yaml-cpp/yaml.h"
 #include "sootHeaders.h"
@@ -92,7 +92,7 @@ int driver_premixed() {
     gas->getMassFractions(&yLbc[0]);
     double mflux = gas->density()*v;
 
-    flame flm(isPremixed, doEnergyEqn, doSoot, 
+    fuego flm(isPremixed, doEnergyEqn, doSoot, 
               ngrd, L, P, csol, 
               yLbc, yLbc, TLbc, TLbc, 
               SM, SMstate);

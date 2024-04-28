@@ -1,5 +1,5 @@
 
-#include "flame.h"
+#include "fuego.h"
 #include "cantera/base/ct_defs.h"
 #include "solver_kinsol.h"
 #include "integrator_cvode.h"
@@ -38,7 +38,7 @@ int rhsf_cvode(realtype t, N_Vector varsCV, N_Vector dvarsdtCV, void *user_data)
 ///
 ////////////////////////////////////////////////////////////////////////////////
 
-flame::flame(const bool _isPremixed, 
+fuego::fuego(const bool _isPremixed, 
              const bool _doEnergyEqn,
              const bool _doSoot,
              const size_t _ngrd, const double _L, double _P, 
@@ -122,7 +122,7 @@ flame::flame(const bool _isPremixed,
 ///
 ////////////////////////////////////////////////////////////////////////////////
 
-void flame::setGrid(double _L) {
+void fuego::setGrid(double _L) {
 
     L = _L;
     dx = vector<double>(ngrd, L/ngrd);
@@ -160,7 +160,7 @@ void flame::setGrid(double _L) {
 /// 
 ////////////////////////////////////////////////////////////////////////////////
 
-void flame::writeFile(const string fname) {
+void fuego::writeFile(const string fname) {
 
     //-------------- compute auxiliary quantities
 
@@ -280,7 +280,7 @@ void flame::writeFile(const string fname) {
 ///
 ////////////////////////////////////////////////////////////////////////////////
 
-void flame::storeState() {
+void fuego::storeState() {
 
     Pstore = P;
     ystore = y;
@@ -296,7 +296,7 @@ void flame::storeState() {
 ///
 ////////////////////////////////////////////////////////////////////////////////
 
-void flame::setIC(const std::string icType, string fname) {
+void fuego::setIC(const std::string icType, string fname) {
 
     if (icType == "linear") {
         gas->setState_TPY(TLbc, P, &yLbc[0]);
@@ -401,7 +401,7 @@ void flame::setIC(const std::string icType, string fname) {
 ///
 ////////////////////////////////////////////////////////////////////////////////
 
-void flame::setFluxesUnity() {
+void fuego::setFluxesUnity() {
 
     //---------- cell center density and diffusivity
 
@@ -551,7 +551,7 @@ void flame::setFluxesUnity() {
 ///
 ////////////////////////////////////////////////////////////////////////////////
 
-void flame::setFluxes() {
+void fuego::setFluxes() {
 
     //---------- cell center density and diffusivity
     vector<vector<double>> D(ngrd, vector<double> (nsp,0.0));
@@ -744,11 +744,11 @@ void flame::setFluxes() {
 /// Solve steady state problem. Uses Sundials Kinsol.
 /// It is more robust to solve the unsteady problem to steady state.
 /// Solves F(vars) = 0, where vars are the vector of variables at all grid points 
-///   and F is the equation for each of them. See flame::Func.
+///   and F is the equation for each of them. See fuego::Func.
 ///
 ////////////////////////////////////////////////////////////////////////////////
 
-void flame::solveSS() {
+void fuego::solveSS() {
 
     //---------- transfer variables into single array
 
@@ -814,7 +814,7 @@ void flame::solveSS() {
 ///
 ////////////////////////////////////////////////////////////////////////////////
 
-int flame::Func(const double *vars, double *F) {
+int fuego::Func(const double *vars, double *F) {
 
     //------------ transfer variables
 
@@ -865,13 +865,13 @@ int flame::Func(const double *vars, double *F) {
 /// Kinsol calls this function, which then calls user_data's Func.
 /// @param varsKS    \input vector of all variables at all grid points (KS for KinSol).
 /// @param fvec      \output vector of all variables at all grid points.
-/// @param user_data \inout pointer to user data ("this" flame object).
+/// @param user_data \inout pointer to user data ("this" fuego object).
 ///
 ////////////////////////////////////////////////////////////////////////////////
 
 int Func_kinsol(N_Vector varsKS, N_Vector fvec, void *user_data) {
 
-    flame *flm = static_cast<flame *>(user_data);
+    fuego *flm = static_cast<fuego *>(user_data);
 
     double *vars = N_VGetArrayPointer(varsKS);
     double *F = N_VGetArrayPointer(fvec);
@@ -888,7 +888,7 @@ int Func_kinsol(N_Vector varsKS, N_Vector fvec, void *user_data) {
 ///
 ////////////////////////////////////////////////////////////////////////////////
 
-void flame::setQrad(vector<double> &Q) {
+void fuego::setQrad(vector<double> &Q) {
 
     vector<double> kabs, awts;
     double fvsoot = 0.0;
@@ -912,7 +912,7 @@ void flame::setQrad(vector<double> &Q) {
 
 ////////////////////////////////////////////////////////////////////////////////
 ///
-/// Solve unsteady flame problems.
+/// Solve unsteady fuego problems.
 /// Assumes y, T are initialized
 /// Two modes: write on every time step of size dt, or write on temperature steps of size dT.
 /// Default is in time --> Tmin, Tmax are zero --> dT = 0
@@ -925,7 +925,7 @@ void flame::setQrad(vector<double> &Q) {
 ///
 ////////////////////////////////////////////////////////////////////////////////
 
-void flame::solveUnsteady(const double nTauRun, const int nSteps, const bool doWriteTime, 
+void fuego::solveUnsteady(const double nTauRun, const int nSteps, const bool doWriteTime, 
                           const double Tmin, const double Tmax) {
 
     //---------- transfer variables into single array
@@ -999,7 +999,7 @@ void flame::solveUnsteady(const double nTauRun, const int nSteps, const bool doW
 ///
 ////////////////////////////////////////////////////////////////////////////////
 
-int flame::rhsf(const double *vars, double *dvarsdt) {
+int fuego::rhsf(const double *vars, double *dvarsdt) {
 
     //------------ transfer variables
 
@@ -1093,12 +1093,12 @@ int flame::rhsf(const double *vars, double *dvarsdt) {
 /// @param t         \input current time (not used here as there are no explicit time dependencies, like S(t)
 /// @param varsCV    \input cvode variables (all vars at all grid points)
 /// @param dvarsdtCV \output cvode rates of all variables (all vars at all grid points)
-/// @param user_data \inout pointer to user data ("this" flame object).
+/// @param user_data \inout pointer to user data ("this" fuego object).
 ///
 ////////////////////////////////////////////////////////////////////////////////
 
 int rhsf_cvode(realtype t, N_Vector varsCV, N_Vector dvarsdtCV, void *user_data) {
-    flame *flm = static_cast<flame *>(user_data);
+    fuego *flm = static_cast<fuego *>(user_data);
 
     double *vars  = N_VGetArrayPointer(varsCV);
     double *dvarsdt = N_VGetArrayPointer(dvarsdtCV);

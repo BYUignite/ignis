@@ -1,0 +1,12 @@
+\page diffusion_table Diffusion flame table
+
+One of the primary motivations for developing the Fuego code was for creation of subgrid lookup tables for use in turbulent nonpremixed combustion simulations. In those applications, a laminar flame is computed for a range of domain lengths (corresponding to varying degrees of flame strain, though the word *strain* used here should not be confused with advective strain often imposed in, e.g., opposed ject configurations. In addition, for a given strained flame, varying levels of heat loss may be imposed by evaluating unsteady flame evolution subject to radiative heat loss. Both radiative loss and flame strain can each result in flame extinction.
+
+The diffusion flame table is set up as for the [diffusion flame](@ref diffusion). The input file gives a list of domain lengths to compute. These should be listed in order of decreasing flame length. For each flame length, the steady adiabatic solution is computed (no radiative heat losses). Then, for each steady solution, the code is run with radiative heat loss and unsteady profiles are saved. The number of such profiles is given by the `nSaveU` parameter in the input file. The run time is given by the `nTauU` parameter, which is the number of characteristic diffusion times for the given domain. The peak value of the steady adiabatic temperature profile is found, \f$T_\text{max}\f$. Similarly, the smallest peak value of the temperature profile at the end of the run time is found, \f$T_\text{min}\f$. `nSaveU` files are then saved at nominally equal temperature increments between \f$T_\text{max}\f$ and \f$T_\text{min}\f$.
+
+These files can then be processed as desired for use in a flame lookup table, e.g. as for so-called *flamelet* tables. The composition profile on the domain can be mapped to a mixture fraction variable \f$\xi\f$, the domain length can be mapped to a dissipation rate \f$\chi\f$ or a progress variable \f$c\f$, and the evolution time can be mapped to enthalpy \f$h\f$. 
+
+<!--
+The primary purpose of the unsteady flame is for generation of lookup tables for application to turbulent flows in which the diffusion flames are an idealization of a subrid, for which details of the unsteady evolution not crucial, and the mapping to appropriate state variables is of primary interest. Of course, the assumption can be relaxed, but then the unsteady neglect of advection terms should also be considered.
+-->
+

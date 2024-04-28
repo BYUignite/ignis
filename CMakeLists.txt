@@ -2,7 +2,7 @@
 
 cmake_minimum_required(VERSION 3.15)
 
-project(flame LANGUAGES CXX)
+project(fuego LANGUAGES CXX)
 
 ################### PROJECT SETUP ##########################
 
@@ -17,7 +17,18 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED YES)
 set(CMAKE_CXX_EXTENSIONS NO)
 
+# ---- build options ----
+
+option(FUEGO_BUILD_DOCS "Build fuego documentation" ON)
+
 ################### MAIN PROJECT TARGETS #####################
 
 add_subdirectory(src)
 
+################### OPTIONAL PROJECT TARGETS #################
+
+#-------- DOCUMENTATION --------
+
+if(FUEGO_BUILD_DOCS)
+    add_subdirectory(docs)
+endif()
