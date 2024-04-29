@@ -14,7 +14,6 @@ if(APPLE)
     set_property(TARGET fuego.x PROPERTY INSTALL_RPATH_USE_LINK_PATH TRUE)  # adds LC_RPATH to executable
 endif()
 
-#<<<<<<< HEAD
 find_library(CANTERA NAMES cantera_shared cantera)
 find_library(RADLIB  NAMES radlib_shared  radlib)
 find_library(SOOTLIB NAMES sootlib)

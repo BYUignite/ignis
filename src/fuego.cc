@@ -91,15 +91,18 @@ fuego::fuego(const bool _isPremixed,
 
     hscale = max(abs(hLbc), abs(hRbc));
     Tscale = 2500;
-    if(doSoot) {                                  // todo make this better jansenpb
-        // add scaling factors to equal nsoot
-        vector<double> scalesList{1e17, 0.01, 1e-16, 3, 1e6};
-        sootScales = vector<double>(nsoot, 1.0);
-        for (size_t i=0; i<nsoot; i++) {
-            sootScales[i] = scalesList[i];
-        }
-    }
 
+    //---------- set sootScales, and species map
+    // Mk = integral (m^k * n(m) *dm) --> Mk ~ M0<m>^k, where <m> in an average soot size 
+    // <m> = M1/M0 = rho*Ys/M0 = fv*rhos/M0
+    // Mk ~ M0(rhos*fv/M0)^k; take M0=1E10 #/m3, rhos=1850 kg/m3, fv=1E-6
+
+    if(doSoot) {
+        sootScales = vector<double>(nsoot, 1E20);
+        for(int i=1; i<nsoot; i++)
+            sootScales[i] = sootScales[i-1]*(1850*1E-6/sootScales[0]);
+        sootScales = {1E20, 1.8E-3, 3.4E-26, 6.3E-49, 1.2E-71, 2.2E-94, 4E-117, 7.4E-140}; // (same as loop above, rounded)
+    }
     //----------
 
     flux_y = vector<vector<double> >(ngrd+1, vector<double>(nsp, 0.0));
@@ -554,6 +557,7 @@ void fuego::setFluxesUnity() {
 void fuego::setFluxes() {
 
     //---------- cell center density and diffusivity
+
     vector<vector<double>> D(ngrd, vector<double> (nsp,0.0));
     vector<double> density(ngrd);
     vector<double> M(ngrd);
@@ -1009,7 +1013,7 @@ int fuego::rhsf(const double *vars, double *dvarsdt) {
         if(doSoot) {
             for(size_t k=nsp; k<nsp+nsoot; k++) {
                 sootvars[i][k-nsp] = vars[Ia(i,k)]*sootScales[k-nsp];    // jansenpb
-        }
+            }
         }
         T[i] = vars[Ia(i,nvar-1)]*Tscale;      // dolh comment to remove h
     }
@@ -1027,14 +1031,20 @@ int fuego::rhsf(const double *vars, double *dvarsdt) {
 
     vector<double> yPAH; if(doSoot) yPAH.resize(6,0.0);
 
+    vector<double> yGasForSM; if(doSoot) yGasForSM.resize( (size_t)gasSp::size );
+
     for(size_t i=0; i<ngrd; i++) {
         gas->setMassFractions_NoNorm(&y[i][0]);
         gas->setState_TP(T[i], P);
         kin->getNetProductionRates(&rr[0]);          // kmol/m3*s
         double rho = gas->density();
-        double nu  = trn->viscosity();
+        double mu  = trn->viscosity();
         if(doSoot) {
-            SMstate->setState(T[i], P, rho, nu, y[i], yPAH, sootvars[i], nsoot);
+            for(size_t kSootGases=0; kSootGases<(size_t)gasSp::size; kSootGases++) {
+                size_t kgas = gas->speciesIndex(gasSpMapIS[kSootGases]);
+                yGasForSM[kSootGases] = (kgas != Cantera::npos) ? y[i][kgas] : 0.0;
+            }
+            SMstate->setState(T[i], P, rho, mu, yGasForSM, yPAH, sootvars[i], nsoot);
             SM->setSourceTerms(*SMstate);
         }
         for(size_t k=0; k<nsp; k++)
@@ -1042,18 +1052,16 @@ int fuego::rhsf(const double *vars, double *dvarsdt) {
                                 rr[k]*gas->molecularWeight(k)/rho;
         if(doSoot) {
             for(size_t k=nsp; k<nsp+nsoot; k++) {
-                dvarsdt[Ia(i,k)] = -(flux_soot[i+1][k-nsp] - flux_soot[i][k-nsp])/(dx[i]) + 
-                                   SM->sources.sootSources[k-nsp];
+                dvarsdt[Ia(i,k)] = -(flux_soot[i+1][k-nsp] - flux_soot[i][k-nsp])/(dx[i]) + SM->sources.sootSources[k-nsp];
                 dvarsdt[Ia(i,k)] /= sootScales[k-nsp];     //jansenpb; to match Tscale below; line 913 
             }
             // loop over the gas species in the soot model and compare with Cantera
             // update the gas source terms from the soot model
-            for(size_t ksootgases=0; ksootgases<(size_t)gasSp::size; ksootgases++) {
-                size_t kgas = gas->speciesIndex(gasSpMapIS[ksootgases]);
+            for(size_t kSootGases=0; kSootGases<(size_t)gasSp::size; kSootGases++) {
+                size_t kgas = gas->speciesIndex(gasSpMapIS[kSootGases]);
                 if(kgas != Cantera::npos)
-                    dvarsdt[Ia(i,kgas)] += SM->sources.gasSources[ksootgases];
+                    dvarsdt[Ia(i,kgas)] += SM->sources.gasSources[kSootGases];
             }
-
         }
 
         if(doEnergyEqn) {
