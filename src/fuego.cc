@@ -271,6 +271,10 @@ void fuego::writeFile(const string fname) {
         ofile << setw(19) << rhoRbc;
         for(int k=0; k<nsp; k++)
             ofile << setw(19) << yRbc[k];
+        if(doSoot) {
+            for(int k=0; k<nsoot; k++)
+                ofile << setw(19) << 0.0;
+        }
     }
 
     ofile.close();

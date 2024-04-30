@@ -73,7 +73,7 @@ integrator_cvode(
     rv   = CVodeSetUserData(cmem, _user_data);
     rv   = CVodeInit(cmem, Func, 0.0, vars);
     rv   = CVodeSVtolerances(cmem, rtol, atol);
-    rv   = CVodeSetMaxNumSteps(cmem, 5000);
+    rv   = CVodeSetMaxNumSteps(cmem, 20000); //5000);
 
     J    = SUNBandMatrix(nvar, mu, ml, sun);   // linear solver matrix J
     LS   = SUNLinSol_Band(vars, J, sun);          // set linear solver
