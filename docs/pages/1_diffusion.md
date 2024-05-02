@@ -44,6 +44,24 @@ The radiative source term \f$Q_r\f$ is computed using an optically-thin approxim
 $$Q_r = -4\sigma k_a(T^4-T_0^4),$$
 where \f$\sigma\f$ is the Stefan-Boltzmann constant, \f$k_a\f$ is the absorption coefficient, and \f$T_0\f$ is the temperature of the lower boundary, corresponding nominally to the ambient surrounding air. The temperature and composition dependent absorption coefficient is computed by [RadLib](https://github.com/BYUignite/RadLib.git) \cite Stephens_2022. By default, a Planck-mean assumption is used considering species H\f$_2\f$O, CO\f$_2\f$, CO, and CH\f$_4\f$. Spectral models can also be easily used, including the weighted sum of gray gases (WSSG), and the rank correlated spectral line weighted sum of gray gases (RCSLW).
 
+## Soot
+
+The equation for soot transport is give by
+
+$$\prtl{M_k}{t} = -\prtl{j_{M,k}}{x} + {S_{M_k}},$$
+
+Where \f$M_k\f$ is the \f$k^{th}\f$ soot mass-moment. Alternatively, it can be defined as the soot section \f$k\f$ of size \f$M_k\f$ and corresponding to the number of soot particles per \f$m^3\f$. \f${S_{M_k}}\f$ is the soot source term and is taken directly from [SootLib](https://github.com/BYUignite/sootlib) \cite Stephens_2023. It includes nucleation, growth, oxidation, and coagulation. \f$M_k\f$ is defined as
+
+$$ M_k = \int m^k n(m) dm $$
+
+where \f$n(m)\f$ is the number of soot particles per \f$m^3\f$ per kg of soot. Additionally, \f$m\f$ is the mass in \f$kg\f$ per soot particle. The value of \f$M_k\f$ when \f$ k = 0 \f$ is taken to be the number of soot particles per \f$m^3\f$. Likewise, when \f$ k = 1 \f$, \f$ M_k \f$ is representative of the \f$kg\f$ of soot per \f$m^3\f$, which is equal to the denisty of the soot times the mass fraction of the soot. Further values of \f$M_k\f$ can be shown, but do not have as interesting of physical interpretations. The average size of a soot particle, \f$\langle m \rangle \f$ is defined as \f$\frac{M_1}{M_0}\f$, or the average mass in \f$kg\f$ per soot particle. Each soot mass-moment is spaced from its predecessor by about 20 orders of magnitude. Thus, to help solve this equation, the soot moments are multiplied by a scaling factor so their values are all about the same order of magnitude. This helps the solver converge, and after the solve, the mass moments are divided by the same scaling factor to revert them back to their original order of magnitude.
+
+The flux of each soot mass moment, \f$j_{M_{k}}\f$ is given by
+
+$$ j_{M_{k}} = -0.556 \nu M_k \frac{\nabla T}{T}, $$
+
+where \f$\nu\f$ is the kinematic viscosity of the gas. This makes the soot transport equation a hyperbolic PDE, and therefore we solve it by upwinding.
+
 ## Numerical solution
 
 The partial differential equations given above are solved using a finite volume (FV) formulation on a nonuniform spatial grid. The species equation at grid cell \f$i\f$ is given by 
