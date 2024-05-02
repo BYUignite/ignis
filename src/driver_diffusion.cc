@@ -95,7 +95,7 @@ int driver_diffusion() {
     flm.writeFile("IC.dat");
 
     flm.doRadiation = false;
-    flm.solveUnsteady(nTauSS, nsaveSS, false);
+    flm.solveUnsteady(nTauSS, nsaveSS, true);
 
     stringstream ss; ss << "L_" << L << "S_" << setfill('0') << setw(3) << 0 << ".dat";
     string fname = ss.str();

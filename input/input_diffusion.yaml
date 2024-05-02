@@ -3,7 +3,7 @@ isPremixed:    false        # flag for premixed or nonpremixed
 
 #-----------------
 
-ngrd:         40            # number of grid points
+ngrd:         50            # number of grid points
 L:            0.003         # domain length (m)
 nTauSS:       6.0           # number of diffusive mixing timescales to run to get to steady state
 nsaveSS:      1             # number of save files when solving steady

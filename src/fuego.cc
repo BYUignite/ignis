@@ -732,15 +732,23 @@ void fuego::setFluxes() {
                 flux_soot[ngrd][k] = mflux/density_f.back()*sootvars[ngrd-1][k] - 
                                      0.556*sootvars[ngrd-1][k]*nu_f.back()/T_f.back()*
                                      (T_f.back()-T.back())/dx.back()*2;
+                for(int i=1; i<ngrd; i++) {
+                    flux_soot[i][k]  = -0.556*nu_f[i]*(T[i]-T[i-1])/T_f[i]*2/(dx[i-1]+dx[i]) + mflux/density_f[i]; // soot velocity
+                    flux_soot[i][k] *= (flux_soot[i][k] > 0 ? sootvars[i-1][k] : sootvars[i][k]);                  // upwind flux
+                }
             }
             else {
                 flux_soot[0][k]    = -0.556*sootvars[0][k]*nu_f[0]/TLbc*(T[0]-TLbc)/dx[0]*2;
                 flux_soot[ngrd][k] = -0.556*sootvars[ngrd-1][k]*nu_f.back()/TRbc*(TRbc-T.back())/dx.back()*2;
-            }
-            for(int i=1; i<ngrd; i++) {
-                flux_soot[i][k] = 0.556*nu_f[i]*(T[i]-T[i-1])/T_f[i]*2/(dx[i-1]+dx[i]);
-                flux_soot[i][k] *= (flux_soot[i][k] > 0 ? -sootvars[i][k] : -sootvars[i-1][k]); // upwind
-                if(isPremixed) flux_soot[i][k] += mflux/density_f[i] * sootvars[i-1][k];        // upwind
+                for(int i=1; i<ngrd; i++) {
+                    flux_soot[i][k]  = -0.556*nu_f[i]*(T[i]-T[i-1])/T_f[i]*2/(dx[i-1]+dx[i]);     // soot velocity
+                    flux_soot[i][k] *= (flux_soot[i][k] > 0 ? sootvars[i-1][k] : sootvars[i][k]); // upwind
+                }
+
+                //flux_soot[0][k] += -nu_f[0]*(sootvars[0][k]-0.0)/dx[0]*2;
+                //flux_soot[ngrd][k] += -nu_f.back()*(0.0-sootvars[ngrd-1][k])/dx.back()*2;
+                //for(int i=1; i<ngrd; i++)
+                //    flux_soot[i][k] += -nu_f[i]*(sootvars[i][k]-sootvars[i-1][k])/(dx[i-1]+dx[i])*2;
             }
         }
     }
@@ -1061,6 +1069,7 @@ int fuego::rhsf(const double *vars, double *dvarsdt) {
             }
             // loop over the gas species in the soot model and compare with Cantera
             // update the gas source terms from the soot model
+
             for(size_t kSootGases=0; kSootGases<(size_t)gasSp::size; kSootGases++) {
                 size_t kgas = gas->speciesIndex(gasSpMapIS[kSootGases]);
                 if(kgas != Cantera::npos)
