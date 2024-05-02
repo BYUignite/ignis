@@ -45,14 +45,16 @@ Fuego is called from the command line with one of three command line options:
 * `./fuego.x premixed`
 * `./fuego.x diffusion`
 * `./fuego.x diffusion_table`
+* `./fuego.x flamelet`
 If no option is set the code defaults to premixed. Each of these options has a corresponding driver function that sets up and runs the case. The driver functions read case parameters from corresponding input files:
 * `input/input_premixed.yaml`
 * `input/input_diffusion.yaml`
 * `input/input_diffusion_table.yaml`
+* `input/input_flamelet.yaml`
 
 # Examples
 
-The three case types, with the default input files function as three example cases for the code. They can be modified and extended as desired.
+The four case types, with the default input files function as four example cases for the code. They can be modified and extended as desired.
 
 # Flame formulations
 
@@ -60,5 +62,6 @@ Details of the equations solved and models used are given for
 * \ref diffusion
 * \ref premixed 
 * \ref diffusion_table
+* \ref flamelet
 
 
