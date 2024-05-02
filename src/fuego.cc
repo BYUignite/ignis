@@ -1184,20 +1184,12 @@ int fuego::rhsf_flamelet(const double *vars, double *dvarsdt) {
         T[i] = vars[Ia(i,nvar-1)]*Tscale;      // dolh comment to remove h
     }
 
-
-
-
-
+    //------ uncomment to solve for h instead (1 of 2)
     // for(size_t i=0; i<ngrd; i++) {
     //     gas->setMassFractions(&y[i][0]);
     //     gas->setState_HP(hLbc*(1.0-x[i]) + hRbc*x[i], P);
     //     T[i] = gas->temperature();
     // }
-
-
-
-
-
 
     //------------ set variables
 
@@ -1243,8 +1235,8 @@ int fuego::rhsf_flamelet(const double *vars, double *dvarsdt) {
         for(size_t i=0; i<ngrd; i++) 
             yy[i] = y[i][k];
         setDerivative2(yLbc[k], yRbc[k], yy, d2ydz2);
-        for(size_t i=0; i<ngrd; i++) 
-            dvarsdt[Ia(i,k)] = 0.5*chi[i]*d2ydz2[i] + rr[i][k]/rho[k];
+        for(size_t i=0; i<ngrd; i++)
+            dvarsdt[Ia(i,k)] = 0.5*chi[i]*d2ydz2[i] + rr[i][k]/rho[i];
     }
 
     //------------ energy (temperature)
@@ -1273,13 +1265,13 @@ int fuego::rhsf_flamelet(const double *vars, double *dvarsdt) {
             dydzdhdzSum[i] += dykdz[i]*dhkdz[i];
     }
 
-    for(size_t i=0; i<ngrd; i++)
+    for(size_t i=0; i<ngrd; i++) {
         dvarsdt[Ia(i,nvar-1)] = -hsprrSum[i]/(cp[i]*rho[i]) + 0.5*chi[i]*
                                 (d2Tdz2[i] + (dTdz[i]*dcpdz[i] + dydzdhdzSum[i])/cp[i]);
+        dvarsdt[Ia(i,nvar-1)] /= Tscale;
+    }
 
-
-
-
+    //------ uncomment to solve for h instead (2 of 2)
     // for(size_t i=0; i<ngrd; i++)
     //     dvarsdt[Ia(i,nvar-1)] = 0.0;
 
@@ -1352,7 +1344,7 @@ void fuego::setDerivative2(const double vL, const double vR,
     double dvdxR = (v[1]-v[0])/(dx[0]+dx[1])*2;
     d2vdx2[0]    = (dvdxR - dvdxL)/dx[0];
 
-    for(size_t i=1; i<ngrd; i++) {                    // interior cells
+    for(size_t i=1; i<ngrd-1; i++) {                    // interior cells
         dvdxL     = dvdxR;
         dvdxR     = (v[i+1]-v[i])/(dx[i]+dx[i+1])*2;
         d2vdx2[i] = (dvdxR - dvdxL)/dx[i];
