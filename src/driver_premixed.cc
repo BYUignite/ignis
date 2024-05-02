@@ -82,12 +82,14 @@ int driver_premixed() {
 
     //=====================
 
+    bool isFlamelet = false;
+
     gas->setState_TPX(TLbc, P, &xLbc[0]);
     vector<double> yLbc(ngrd);
     gas->getMassFractions(&yLbc[0]);
     double mflux = gas->density()*v;
 
-    fuego flm(isPremixed, doEnergyEqn, doSoot, 
+    fuego flm(isPremixed, doEnergyEqn, isFlamelet, doSoot, 
               ngrd, L, P, csol, 
               yLbc, yLbc, TLbc, TLbc, 
               SM, SMstate);

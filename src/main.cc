@@ -10,6 +10,7 @@ using std::cout, std::endl;
 int driver_premixed();
 int driver_diffusion();
 int driver_diffusion_table();
+int driver_flamelet();
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -27,6 +28,8 @@ int main(int nargs, char *argv[]) {
             ireturn = driver_diffusion();
         else if (string(argv[1]) == "diffusion_table")
             ireturn = driver_diffusion_table();
+        else if (string(argv[1]) == "flamelet")
+            ireturn = driver_flamelet();
         else {
             cout << "\n\nERROR: invalid case type argument\n" << endl;
             ireturn = 1;

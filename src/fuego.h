@@ -45,10 +45,15 @@ public:
     std::vector<double> yLbc, yRbc;                 ///< y boundary values: left and right (as needed)
     double TLbc, TRbc;                              ///< T boundary values: left and right (as needed)
     double hLbc, hRbc;                              ///< h boundary values: left and right (as needed)
+    double cpLbc,cpRbc;                             ///< cp boundary values: left and right (as needed)
+    std::vector<double> hspLbc;                     ///< species enthalpies on left boundary
+    std::vector<double> hspRbc;                     ///< species enthalpies on right boundary
 
     double              L;                          ///< domain size (m)
     std::vector<double> x;                          ///< grid position values (m)
     std::vector<double> dx;                         ///< grid spacing (m), nonuniform is fine
+    std::vector<double> fl;                         ///< fractions for interpolation
+    std::vector<double> fr;                         ///< fractions for interpolation
 
     double Tscale;                                  ///< scaling value for temperature (for solvers)
     double hscale;                                  ///< scaling value for enthalpy (for solvers)
@@ -76,6 +81,10 @@ public:
     std::vector<std::vector<double> > flux_soot;    ///< species fluxes: [I(igrid, ksoot)]
     std::vector<double>               flux_h;       ///< species fluxes: [igrid]
 
+    bool isFlamelet = false;                        ///< true for laminar flamelet (mixture fraction coordinate)
+    std::vector<double> chi;                        ///< dissipation rate profile
+    double chi0;
+
     bool   isPremixed = false;                      ///< true of the case is a premixed flame, (only left boundary condition, constant mass flux through domain)
     double mflux = 0.0;                             ///< premixed flame mass flux (kg/m2*s)
 
@@ -99,23 +108,31 @@ public:
     void setGrid(double _L);
     void writeFile(const std::string fname);
     void solveSS();
+    void setChi(const double _chi0);
     void solveUnsteady(const double nTauRun, const int nsteps, const bool doWriteTime=true, 
                        const double Tmin=0, const double Tmax=0);
     int  Func(const double *vars, double *F);
     int  rhsf(const double *vars, double *dvarsdt);
+    int  rhsf_flamelet(const double *vars, double *dvarsdt);
     void setQrad(std::vector<double> &Q);
     void setTprof(const std::vector<double> &_Tprof_h, const std::vector<double> &_Tprof_T) {
         Tprof_h = _Tprof_h;
         Tprof_T = _Tprof_T;
         LI = std::make_shared<linearInterp>(Tprof_h, Tprof_T);
     }
+    void setDerivative2(const double vL, const double vR, 
+                        const std::vector<double> &v, 
+                        std::vector<double> &d2vdx2);
+    void setDerivative( const double vL, const double vR, 
+                        const std::vector<double> &v, 
+                        std::vector<double> &dvdx);
 
     size_t I( size_t i, size_t k) { return i*nsp  + k; }     // y[I(i,k)] in 1D --> y[i,k] in 2D
     size_t Ia(size_t i, size_t k) { return i*nvar + k; }     // for indexing combined (a for all) vars
 
     ////////////////////// constructors 
 
-    fuego(const bool _isPremixed, const bool _doEnergyEqn, const bool _doSoot, 
+    fuego(const bool _isPremixed, const bool _doEnergyEqn, const bool _isFlamelet, const bool _doSoot, 
           const size_t _ngrd, const double _L, const double _P,
           std::shared_ptr<Cantera::Solution> csol,
           const std::vector<double> &_yLbc, const std::vector<double> &_yRbc, 

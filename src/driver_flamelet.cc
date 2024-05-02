@@ -14,25 +14,28 @@ using namespace soot;
 
 ///////////////////////////////////////////////////////////////////////////////
 ///
-/// Driver for a simple diffusion flame.
+/// Driver for a simple laminar flamelet solved in mixture fraction space
 ///
 ///////////////////////////////////////////////////////////////////////////////
 
-int driver_diffusion() {
+int driver_flamelet() {
     
     auto csol = Cantera::newSolution("gri30.yaml");
     auto gas  = csol->thermo();
 
     //===================== read input file
 
-    YAML::Node inputFile = YAML::LoadFile("../input/input_diffusion.yaml");
+    YAML::Node inputFile = YAML::LoadFile("../input/input_flamelet.yaml");
 
     //---------------------
 
+    bool isFlamelet = inputFile["isFlamelet"].as<bool>();
+
     size_t ngrd    = inputFile["ngrd"].as<size_t>();
-    double L       = inputFile["L"].as<double>();
     double nTauSS  = inputFile["nTauSS"].as<double>();
     int    nsaveSS = inputFile["nsaveSS"].as<int>();
+
+    double chi0    = inputFile["chi0"].as<double>();
 
     vector<double> Ls;
     for(size_t i=0; i<inputFile["Ls"].size(); i++)
@@ -77,8 +80,8 @@ int driver_diffusion() {
     //---------------------
 
     bool doEnergyEqn = true;
-    bool isFlamelet  = false;
     bool isPremixed  = false;
+    double L = 1.0;
 
     //=====================
 
@@ -88,6 +91,7 @@ int driver_diffusion() {
               SM, SMstate);
 
     //flm.doLe1 = true;
+    flm.setChi(chi0);
 
     flm.setIC("equilibrium");
     flm.writeFile("IC.dat");
@@ -95,7 +99,7 @@ int driver_diffusion() {
     flm.doRadiation = false;
     flm.solveUnsteady(nTauSS, nsaveSS, true);
 
-    stringstream ss; ss << "L_" << L << "S_" << setfill('0') << setw(3) << 0 << ".dat";
+    stringstream ss; ss << "X_" << chi0 << "S_" << setfill('0') << setw(3) << 0 << ".dat";
     string fname = ss.str();
     flm.writeFile(fname);
 

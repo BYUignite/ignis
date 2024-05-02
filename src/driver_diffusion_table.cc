@@ -33,10 +33,6 @@ int driver_diffusion_table() {
 
     //---------------------
 
-    bool isPremixed = inputFile["isPremixed"].as<bool>();
-
-    //---------------------
-
     size_t ngrd    = inputFile["ngrd"].as<size_t>();
     double L       = inputFile["L"].as<double>();
     double nTauSS  = inputFile["nTauSS"].as<double>();
@@ -92,10 +88,12 @@ int driver_diffusion_table() {
     //---------------------
 
     bool doEnergyEqn = true;
+    bool isPremixed  = false;
+    bool isFlamelet  = false;
 
     //=====================
 
-    fuego flm(isPremixed, doEnergyEqn, doSoot, 
+    fuego flm(isPremixed, doEnergyEqn, isFlamelet, doSoot, 
               ngrd, L, P, csol,
               yLbc, yRbc, TLbc, TRbc,
               SM, SMstate);

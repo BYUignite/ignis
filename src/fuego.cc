@@ -11,6 +11,7 @@
 #include <sstream>
 #include <numeric>
 
+
 using namespace std;
 using soot::sootModel, soot::state, soot::gasSp, soot::gasSpMapIS, soot::gasSpMapES;
 
@@ -40,6 +41,7 @@ int rhsf_cvode(realtype t, N_Vector varsCV, N_Vector dvarsdtCV, void *user_data)
 
 fuego::fuego(const bool _isPremixed, 
              const bool _doEnergyEqn,
+             const bool _isFlamelet,
              const bool _doSoot,
              const size_t _ngrd, const double _L, double _P, 
              shared_ptr<Cantera::Solution> csol,
@@ -48,6 +50,7 @@ fuego::fuego(const bool _isPremixed,
              shared_ptr<sootModel> _SM, 
              shared_ptr<state>     _SMstate) :
     isPremixed(_isPremixed),
+    isFlamelet(_isFlamelet),
     doEnergyEqn(_doEnergyEqn),
     doSoot(_doSoot),
     ngrd(_ngrd),
@@ -59,6 +62,13 @@ fuego::fuego(const bool _isPremixed,
     TRbc(_TRbc),
     SM(_SM),
     SMstate(_SMstate) {
+
+    //----------
+
+    if(_isPremixed && _isFlamelet)
+        throw runtime_error("Cannot set both premixed and flamelet");
+    if(_isFlamelet && _L!=1.0)
+        throw runtime_error("flamelet should have L=1");
 
     //----------
 
@@ -83,9 +93,19 @@ fuego::fuego(const bool _isPremixed,
 
     gas->setState_TPY(TLbc, P, &yLbc[0]);
     hLbc = gas->enthalpy_mass();
+    cpLbc = gas->cp_mass();
+    hspLbc.resize(nsp);
+    gas->getEnthalpy_RT(&hspLbc[0]);
+    for(size_t k=0; k<nsp; k++)                   // --> hsp = J/kg species i
+        hspLbc[k] *= TLbc*Cantera::GasConstant/gas->molecularWeight(k);
 
     gas->setState_TPY(TRbc, P, &yRbc[0]);
     hRbc = gas->enthalpy_mass();
+    cpRbc = gas->cp_mass();
+    hspRbc.resize(nsp);
+    gas->getEnthalpy_RT(&hspRbc[0]);
+    for(size_t k=0; k<nsp; k++)                   // --> hsp = J/kg species i
+        hspRbc[k] *= TRbc*Cantera::GasConstant/gas->molecularWeight(k);
 
     if(!isPremixed) strm = make_shared<streams>(csol, P, hLbc, hRbc, yLbc, yRbc);
 
@@ -123,6 +143,9 @@ fuego::fuego(const bool _isPremixed,
 /// Set spatial grid (x and dx)
 /// @param _L \input domain length (resets class data member L, so cases can be run with different L)
 ///
+/// |  *  |  *  |  *  |  *  |  *  |
+///   dx     dx    dx    dx    dx
+///
 ////////////////////////////////////////////////////////////////////////////////
 
 void fuego::setGrid(double _L) {
@@ -154,6 +177,29 @@ void fuego::setGrid(double _L) {
         for (size_t i=1; i<ngrd; i++)
             x[i] = x[i-1] + (dx[i-1]+dx[i])/2;
     }
+
+    //--------- set fx
+    // interpolation factors to interior faces
+    // 0     1                      2           3     4
+    // |  *  |           *          |     *     |  *  |
+    //    0              1                2        3
+    // vf[1] = v[0]*(dx[1]/(dx[0]+dx[1])) + v[1]*(dx[0]/(dx[0]+dx[1]))
+    //       = v[0]*(       fl[0]       ) + v[1]*(    1.0 - fl[0]    )
+    //       = v[0]*(       fl[0]       ) + v[1]*(       fr[0]       )
+    // 
+    // vf[3] = v[2]*(dx[3]/(dx[2]+dx[3])) + v[3]*(dx[2]/(dx[2]+dx[3]))
+    //       = v[2]*(       fl[2]       ) + v[3]*(    1.0 - fl[2]    )
+    //       = v[2]*(       fl[2]       ) + v[3]*(       fr[2]       )
+    //
+    // vf[i] = v[i-1]*fl[i-1] + v[i]*fr[i-1]
+
+    fl.resize(ngrd-1);
+    fr.resize(ngrd-1);
+    for(size_t i=0; i<ngrd-1; i++) {
+        fl[i] = dx[i+1]/(dx[i]+dx[i+1]);
+        fr[i] = 1.0-fl[i];
+    }
+
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -328,7 +374,7 @@ void fuego::setIC(const std::string icType, string fname) {
             gas->setState_TPY(T[i], P, &y[i][0]);
             gas->equilibrate("HP");
             gas->getMassFractions(&y[i][0]);
-            T[i] = doEnergyEqn ? gas->temperature() : LI->interp(x[i]);   // redundante
+            T[i] = doEnergyEqn ? gas->temperature() : LI->interp(x[i]);   // redundant
         }
     }
 
@@ -458,14 +504,12 @@ void fuego::setFluxesUnity() {
         }
     }
 
-    for(int i=1; i<ngrd; i++) {    // interpolate
-        double f1 = dx[i-1]/(dx[i-1]+dx[i]);
-        double f0 = 1.0-f1;
-        density_f[i] = density[i-1]*f0 + density[i]*f1;
-        D_f[i] = D[i-1]*f0 + D[i]*f1;
+    for(int i=1, im=0; i<ngrd; i++, im++) {    // interpolate
+        density_f[i] = density[im]*fl[im] + density[i]*fr[im];
+        D_f[i]       = D[im]      *fl[im] + D[i]      *fr[im];
         if(doSoot) {
-            nu_f[i] = nu[i-1]*f0 + nu[i]*f1; 
-            T_f[i]  = T[i-1]*f0 + T[i]*f1; 
+            nu_f[i] = nu[im]*fl[im] + nu[i]*fr[im]; 
+            T_f[i]  = T[im] *fl[im] + T[i] *fr[im]; 
         }
     }
 
@@ -622,18 +666,16 @@ void fuego::setFluxes() {
             nu_f.back()   = nu.back()      +(nu[ngrd-1]      - nu[ngrd-2])     /(dx[ngrd-1]+dx[ngrd-2])*2.0*(L-x[ngrd-1]);
     }
 
-    for (int i=1; i<ngrd; i++) {
-        double f1 = dx[i-1]/(dx[i-1]+dx[i]);
-        double f0 = 1.0-f1;
-        density_f[i]  = density[i-1]*f0 + density[i]*f1;
-        T_f[i]        = T[i-1]      *f0 + T[i]      *f1;
-        tcond_f[i]    = tcond[i-1]  *f0 + tcond[i]  *f1;
-        M_f[i]        = M[i-1]      *f0 + M[i]      *f1;
+    for (int i=1, im=0; i<ngrd; i++, im++) {
+        density_f[i]  = density[im]*fl[im] + density[i]*fr[im];
+        T_f[i]        = T[im]      *fl[im] + T[i]      *fr[im];
+        tcond_f[i]    = tcond[im]  *fl[im] + tcond[i]  *fr[im];
+        M_f[i]        = M[im]      *fl[im] + M[i]      *fr[im];
         if(doSoot)
-            nu_f[i]   = nu[i-1]     *f0 + nu[i]     *f1;
+            nu_f[i]   = nu[im]     *fl[im] + nu[i]     *fr[im];
         for(int k=0; k<nsp; k++) {
-            D_f[i][k] = D[i-1][k]   *f0 + D[i][k]   *f1;
-            y_f[i][k] = y[i-1][k]   *f0 + y[i][k]   *f1;
+            D_f[i][k] = D[im][k]   *fl[im] + D[i][k]   *fr[im];
+            y_f[i][k] = y[im][k]   *fl[im] + y[i][k]   *fr[im];
         }
     }
 
@@ -977,7 +1019,16 @@ void fuego::solveUnsteady(const double nTauRun, const int nSteps, const bool doW
     double D = 0.00035;                                   // avg thermal diffusivity
     double t = 0.0;
     if(isPremixed) gas->setState_TPY(TLbc, P, &yLbc[0]); // needed fro density in tend
-    double tend = nTauRun * (isPremixed ? L/(mflux/gas->density()) : L*L/D);
+
+    double tau;
+    if(isPremixed)
+        tau = L/(mflux/gas->density());
+    else if(isFlamelet)
+        tau = 1.0/chi0;
+    else
+        tau = L*L/D;
+    double tend = nTauRun * tau;
+
     double dt = tend/nSteps;
     dT = Tmax==Tmin ? 0.0 : (Tmax-(Tmin+0.1))/nSteps;
     Ttarget = Tmax - dT;
@@ -986,7 +1037,11 @@ void fuego::solveUnsteady(const double nTauRun, const int nSteps, const bool doW
     for(int istep=1; istep<=nSteps; istep++, t+=dt) {
         integ.integrate(vars, dt);
         if(doWriteTime && dT <= 0.0) {           // write in time; (write in Temp is in rhsf)
-            stringstream ss; ss << "L_" << L << "U_" << setfill('0') << setw(3) << isave++ << ".dat";
+            stringstream ss; 
+            if(isFlamelet)
+                ss << "X_" << chi0 << "U_" << setfill('0') << setw(3) << isave++ << ".dat";
+            else
+                ss << "L_" << L    << "U_" << setfill('0') << setw(3) << isave++ << ".dat";
             string fname = ss.str();
             writeFile(fname);
         }
@@ -1110,6 +1165,224 @@ int fuego::rhsf(const double *vars, double *dvarsdt) {
 
 ////////////////////////////////////////////////////////////////////////////////
 ///
+/// Right hand side function for unsteady solver for flamelet equations, as in dvar/dt = rhsf(var)
+/// @param vars    \input current value of variables at each grid point
+/// @param dvarsdt \output rate of each variable at each grid point
+///
+////////////////////////////////////////////////////////////////////////////////
+
+int fuego::rhsf_flamelet(const double *vars, double *dvarsdt) {
+
+    //------------ transfer variables
+
+    for(size_t i=0; i<ngrd; i++) {
+        for(size_t k=0; k<nsp; k++)
+            y[i][k] = vars[Ia(i,k)];
+        if(doSoot)
+            for(size_t k=nsp; k<nsp+nsoot; k++)
+                sootvars[i][k-nsp] = vars[Ia(i,k)]*sootScales[k-nsp];    // jansenpb
+        T[i] = vars[Ia(i,nvar-1)]*Tscale;      // dolh comment to remove h
+    }
+
+
+
+
+
+    // for(size_t i=0; i<ngrd; i++) {
+    //     gas->setMassFractions(&y[i][0]);
+    //     gas->setState_HP(hLbc*(1.0-x[i]) + hRbc*x[i], P);
+    //     T[i] = gas->temperature();
+    // }
+
+
+
+
+
+
+    //------------ set variables
+
+    vector<vector<double> > rr(ngrd, vector<double>(nsp));
+    vector<double>          rho(ngrd);
+
+    vector<double>          cp(ngrd);
+    vector<vector<double> > hsp(ngrd, vector<double>(nsp));
+    vector<double>          hsprrSum(ngrd, 0.0);
+
+    for(size_t i=0; i<ngrd; i++) {
+
+        //------- set gas
+
+        gas->setMassFractions_NoNorm(&y[i][0]);
+        gas->setState_TP(T[i], P);
+
+        //------- reaction rates
+
+        kin->getNetProductionRates(&rr[i][0]);          // kmol/m3*s
+        for(size_t k=0; k<nsp; k++)
+            rr[i][k] *= gas->molecularWeight(k);        // kg/m3*2
+
+        //------- species enthalpies
+
+        gas->getEnthalpy_RT(&hsp[i][0]);                // (h/RT) where h = J/kmol
+        for(size_t k=0; k<nsp; k++) {                   // --> hsp = J/kg species i
+            hsp[i][k] *= T[i]*Cantera::GasConstant/gas->molecularWeight(k);
+            hsprrSum[i] += hsp[i][k] * rr[i][k];
+        }
+
+        //-------- 
+
+        rho[i] = gas->density();                        // kg/m3
+        cp[i]  = gas->cp_mass();
+    }
+
+    //------------ species
+
+    vector<double> d2ydz2(ngrd);
+    vector<double> yy(ngrd);                            // intermediate transfer array
+    for(size_t k=0; k<nsp; k++) {
+        for(size_t i=0; i<ngrd; i++) 
+            yy[i] = y[i][k];
+        setDerivative2(yLbc[k], yRbc[k], yy, d2ydz2);
+        for(size_t i=0; i<ngrd; i++) 
+            dvarsdt[Ia(i,k)] = 0.5*chi[i]*d2ydz2[i] + rr[i][k]/rho[k];
+    }
+
+    //------------ energy (temperature)
+
+    vector<double> d2Tdz2(ngrd);
+    setDerivative2(TLbc, TRbc, T, d2Tdz2);
+
+    vector<double> dTdz(ngrd);
+    setDerivative(TLbc, TRbc, T, dTdz);
+
+    vector<double> dcpdz(ngrd);
+    setDerivative(cpLbc, cpRbc, cp, dcpdz);
+
+    vector<double> dydzdhdzSum(ngrd, 0.0);    //todo: fill this in
+    vector<double> dykdz(ngrd);
+    vector<double> dhkdz(ngrd);
+    vector<double> hh(ngrd);                            // intermediate transfer array
+    for(size_t k=0; k<nsp; k++) {
+        for(size_t i=0; i<ngrd; i++) {
+            yy[i] = y[i][k];
+            hh[i] = hsp[i][k];
+        }
+        setDerivative(yLbc[k],   yRbc[k],   yy, dykdz);
+        setDerivative(hspLbc[k], hspRbc[k], hh, dhkdz);
+        for(size_t i=0; i<ngrd; i++)
+            dydzdhdzSum[i] += dykdz[i]*dhkdz[i];
+    }
+
+    for(size_t i=0; i<ngrd; i++)
+        dvarsdt[Ia(i,nvar-1)] = -hsprrSum[i]/(cp[i]*rho[i]) + 0.5*chi[i]*
+                                (d2Tdz2[i] + (dTdz[i]*dcpdz[i] + dydzdhdzSum[i])/cp[i]);
+
+
+
+
+    // for(size_t i=0; i<ngrd; i++)
+    //     dvarsdt[Ia(i,nvar-1)] = 0.0;
+
+    //---------- soot
+
+
+    //-------------
+
+    double TmaxLocal = *max_element(T.begin(), T.end());
+    if(TmaxLocal <= Ttarget) {
+        cout << endl << isave << "  " << TmaxLocal << "  " << Ttarget << "  ";
+        stringstream ss; ss << "X_" << chi0 << "U_" << setfill('0') << setw(3) << isave++ << ".dat";
+        string fname = ss.str();
+        writeFile(fname);
+        Ttarget -= dT;
+    }
+
+    //-------------
+
+    return 0;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+///
+/// Compute derivative of a profile at cell centers
+/// @param vL   \input variable on left face of domain
+/// @param vR   \input variable on right face of domain
+/// @param v    \input variable grid points
+/// @param dvdx \output derivative on grid points
+///
+/// Interpolate variable to faces, then take the derivative between faces
+///       |  *  |           *          |     *     |  *  |
+///
+////////////////////////////////////////////////////////////////////////////////
+
+void fuego::setDerivative(const double vL, const double vR, 
+                          const vector<double> &v, vector<double> &dvdx) {
+
+    double vfL = vL;                            // first cell (left side)
+    double vfR = v[0]*fl[0]+v[1]*fr[0];
+    dvdx[0] = (vfR-vfL)/dx[0];
+
+    for(size_t i=1; i<ngrd-1; i++) {            // interior cells
+        vfL = vfR;
+        vfR = v[i]*fl[i]+v[i+1]*fr[i];
+        dvdx[i] = (vfR-vfL)/dx[i];
+    }
+    vfL = vfR;                                  // last cell (right side)
+    vfR = vR;
+    dvdx[ngrd-1] = (vfR-vfL)/dx[ngrd-1];
+}
+
+////////////////////////////////////////////////////////////////////////////////
+///
+/// Compute second derivative of a profile at cell centers
+/// @param vL   \input variable on left face of domain
+/// @param vR   \input variable on right face of domain
+/// @param v    \input variable grid points
+/// @param d2vdx2 \output derivative on grid points
+///
+/// Get derivative on faces, then take difference between faces
+///       |  *  |           *          |     *     |  *  |
+///
+////////////////////////////////////////////////////////////////////////////////
+
+void fuego::setDerivative2(const double vL, const double vR, 
+                           const vector<double> &v, vector<double> &d2vdx2) {
+
+    double dvdxL = (v[0]-vL)  /dx[0]*2;               // first cell (left side)
+    double dvdxR = (v[1]-v[0])/(dx[0]+dx[1])*2;
+    d2vdx2[0]    = (dvdxR - dvdxL)/dx[0];
+
+    for(size_t i=1; i<ngrd; i++) {                    // interior cells
+        dvdxL     = dvdxR;
+        dvdxR     = (v[i+1]-v[i])/(dx[i]+dx[i+1])*2;
+        d2vdx2[i] = (dvdxR - dvdxL)/dx[i];
+    }
+    dvdxL = dvdxR;                                    // last cell (right side)
+    dvdxR = (vR-v[ngrd-1])/dx[ngrd-1]*2;
+    d2vdx2[ngrd-1] = (dvdxR - dvdxL)/dx[ngrd-1];
+}
+
+////////////////////////////////////////////////////////////////////////////////
+///
+/// Set scalar dissipation rate profile
+/// @param _chi0 \input scalar dissipation rate multiplier
+///
+////////////////////////////////////////////////////////////////////////////////
+
+void fuego::setChi(const double _chi0) {
+
+    chi0 = _chi0;
+    chi.resize(ngrd);
+    double d, e;
+    for(size_t i=0; i<ngrd; i++) {
+        d = 2*x[i]-1;
+        e = 1.0-d*d;
+        chi[i] = chi0*e*e;
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+///
 /// CVODE interface; CVODE calls this function, which then calls user_data's rhsf 
 /// @param t         \input current time (not used here as there are no explicit time dependencies, like S(t)
 /// @param varsCV    \input cvode variables (all vars at all grid points)
@@ -1124,7 +1397,11 @@ int rhsf_cvode(realtype t, N_Vector varsCV, N_Vector dvarsdtCV, void *user_data)
     double *vars  = N_VGetArrayPointer(varsCV);
     double *dvarsdt = N_VGetArrayPointer(dvarsdtCV);
 
-    int rv = flm->rhsf(vars, dvarsdt);
+    int rv;
+    if(flm->isFlamelet)
+        rv = flm->rhsf_flamelet(vars, dvarsdt);
+    else
+        rv = flm->rhsf(vars, dvarsdt);
 
     return rv;
 }

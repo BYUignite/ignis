@@ -6,6 +6,7 @@ target_sources(fuego.x PRIVATE main.cc
                                driver_premixed.cc 
                                driver_diffusion.cc 
                                driver_diffusion_table.cc 
+                               driver_flamelet.cc 
                                fuego.cc 
                                streams.cc)
 
