@@ -1184,7 +1184,7 @@ int fuego::rhsf_flamelet(const double *vars, double *dvarsdt) {
         T[i] = vars[Ia(i,nvar-1)]*Tscale;      // dolh comment to remove h
     }
 
-    //------ uncomment to solve for h instead (1 of 2)
+    //------ uncomment to solve for h instead (1 of 2), but only if doRadiation is false
     // for(size_t i=0; i<ngrd; i++) {
     //     gas->setMassFractions(&y[i][0]);
     //     gas->setState_HP(hLbc*(1.0-x[i]) + hRbc*x[i], P);
@@ -1265,13 +1265,17 @@ int fuego::rhsf_flamelet(const double *vars, double *dvarsdt) {
             dydzdhdzSum[i] += dykdz[i]*dhkdz[i];
     }
 
+    vector<double> Q(ngrd);
+    if(doRadiation) setQrad(Q);
+
     for(size_t i=0; i<ngrd; i++) {
         dvarsdt[Ia(i,nvar-1)] = -hsprrSum[i]/(cp[i]*rho[i]) + 0.5*chi[i]*
                                 (d2Tdz2[i] + (dTdz[i]*dcpdz[i] + dydzdhdzSum[i])/cp[i]);
+        if(doRadiation) dvarsdt[Ia(i,nvar-1)] += Q[i]/(rho[i]*cp[i]);
         dvarsdt[Ia(i,nvar-1)] /= Tscale;
     }
 
-    //------ uncomment to solve for h instead (2 of 2)
+    //------ uncomment to solve for h instead (2 of 2), but only if doRadiation is false
     // for(size_t i=0; i<ngrd; i++)
     //     dvarsdt[Ia(i,nvar-1)] = 0.0;
 
