@@ -5,7 +5,7 @@
 
 # Overview
 
-[Fuego](https://github.com/BYUignite/fuego.git) is a C++ code for computing laminar premixed and diffusion flame profiles. Steady and unsteady solutions are possible, with soot formation and radiation models included.
+[Ignis](https://github.com/BYUignite/ignis.git) is a C++ code for computing laminar premixed and diffusion flame profiles. Steady and unsteady solutions are possible, with soot formation and radiation models included.
 
 # Dependencies and installation
 
@@ -27,25 +27,25 @@ Optional software:
 ## Build and installation instructions
 1. Create and navigate into a top-level `build` directory
 2. Configure CMake: `cmake ..`
-3. Build Fuego: `make`
-4. Install Fuego: `make install`
+3. Build Ignis: `make`
+4. Install Ignis: `make install`
 
-The build process installs the executable in `run/fuego.x`.
+The build process installs the executable in `run/ignis.x`.
 
 ## CMake configuration variables
 The default CMake configuration should be adequate for users that do not immediately require the documentation. CMake configuration options can be set by editing the top-level `CMakeLists.txt` file, or specifying options on the command line during step 2 as follows:
 ```
-cmake -DFUEGO_BUILD_DOCS=ON ..
+cmake -DIGNIS_BUILD_DOCS=ON ..
 ```
 Then build the documentation with `make docs`, and navigate to `docs/index.html` to view the documentation.
 
-# Using Fuego
+# Using Ignis
 
-Fuego is called from the command line with one of three command line options:
-* `./fuego.x premixed`
-* `./fuego.x diffusion`
-* `./fuego.x diffusion_table`
-* `./fuego.x flamelet`
+Ignis is called from the command line with one of four command line options:
+* `./ignis.x premixed`
+* `./ignis.x diffusion`
+* `./ignis.x diffusion_table`
+* `./ignis.x flamelet`
 If no option is set the code defaults to premixed. Each of these options has a corresponding driver function that sets up and runs the case. The driver functions read case parameters from corresponding input files:
 * `input/input_premixed.yaml`
 * `input/input_diffusion.yaml`

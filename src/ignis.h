@@ -22,7 +22,7 @@
 ///
 ///////////////////////////////////////////////////////////////////////////////
 
-class fuego {
+class ignis {
 
 public:
 
@@ -132,7 +132,7 @@ public:
 
     ////////////////////// constructors 
 
-    fuego(const bool _isPremixed, const bool _doEnergyEqn, const bool _isFlamelet, const bool _doSoot, 
+    ignis(const bool _isPremixed, const bool _doEnergyEqn, const bool _isFlamelet, const bool _doSoot, 
           const size_t _ngrd, const double _L, const double _P,
           std::shared_ptr<Cantera::Solution> csol,
           const std::vector<double> &_yLbc, const std::vector<double> &_yRbc, 

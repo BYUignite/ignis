@@ -1,4 +1,4 @@
-#include "fuego.h"
+#include "ignis.h"
 #include "cantera/base/Solution.h"
 #include "yaml-cpp/yaml.h"
 #include "sootHeaders.h"
@@ -82,7 +82,7 @@ int driver_diffusion() {
 
     //=====================
 
-    fuego flm(isPremixed, doEnergyEqn, isFlamelet, doSoot, 
+    ignis flm(isPremixed, doEnergyEqn, isFlamelet, doSoot, 
               ngrd, L, P, csol,
               yLbc, yRbc, TLbc, TRbc,
               SM, SMstate);

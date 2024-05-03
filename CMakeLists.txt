@@ -2,7 +2,7 @@
 
 cmake_minimum_required(VERSION 3.15)
 
-project(fuego LANGUAGES CXX)
+project(ignis LANGUAGES CXX)
 
 ################### PROJECT SETUP ##########################
 
@@ -19,7 +19,7 @@ set(CMAKE_CXX_EXTENSIONS NO)
 
 # ---- build options ----
 
-option(FUEGO_BUILD_DOCS "Build fuego documentation" ON)
+option(IGNIS_BUILD_DOCS "Build ignis documentation" ON)
 
 ################### MAIN PROJECT TARGETS #####################
 
@@ -29,6 +29,6 @@ add_subdirectory(src)
 
 #-------- DOCUMENTATION --------
 
-if(FUEGO_BUILD_DOCS)
+if(IGNIS_BUILD_DOCS)
     add_subdirectory(docs)
 endif()

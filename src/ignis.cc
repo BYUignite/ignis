@@ -1,5 +1,5 @@
 
-#include "fuego.h"
+#include "ignis.h"
 #include "cantera/base/ct_defs.h"
 #include "solver_kinsol.h"
 #include "integrator_cvode.h"
@@ -39,7 +39,7 @@ int rhsf_cvode(realtype t, N_Vector varsCV, N_Vector dvarsdtCV, void *user_data)
 ///
 ////////////////////////////////////////////////////////////////////////////////
 
-fuego::fuego(const bool _isPremixed, 
+ignis::ignis(const bool _isPremixed, 
              const bool _doEnergyEqn,
              const bool _isFlamelet,
              const bool _doSoot,
@@ -148,7 +148,7 @@ fuego::fuego(const bool _isPremixed,
 ///
 ////////////////////////////////////////////////////////////////////////////////
 
-void fuego::setGrid(double _L) {
+void ignis::setGrid(double _L) {
 
     L = _L;
     dx = vector<double>(ngrd, L/ngrd);
@@ -209,7 +209,7 @@ void fuego::setGrid(double _L) {
 /// 
 ////////////////////////////////////////////////////////////////////////////////
 
-void fuego::writeFile(const string fname) {
+void ignis::writeFile(const string fname) {
 
     //-------------- compute auxiliary quantities
 
@@ -333,7 +333,7 @@ void fuego::writeFile(const string fname) {
 ///
 ////////////////////////////////////////////////////////////////////////////////
 
-void fuego::storeState() {
+void ignis::storeState() {
 
     Pstore = P;
     ystore = y;
@@ -349,7 +349,7 @@ void fuego::storeState() {
 ///
 ////////////////////////////////////////////////////////////////////////////////
 
-void fuego::setIC(const std::string icType, string fname) {
+void ignis::setIC(const std::string icType, string fname) {
 
     if (icType == "linear") {
         gas->setState_TPY(TLbc, P, &yLbc[0]);
@@ -454,7 +454,7 @@ void fuego::setIC(const std::string icType, string fname) {
 ///
 ////////////////////////////////////////////////////////////////////////////////
 
-void fuego::setFluxesUnity() {
+void ignis::setFluxesUnity() {
 
     //---------- cell center density and diffusivity
 
@@ -602,7 +602,7 @@ void fuego::setFluxesUnity() {
 ///
 ////////////////////////////////////////////////////////////////////////////////
 
-void fuego::setFluxes() {
+void ignis::setFluxes() {
 
     //---------- cell center density and diffusivity
 
@@ -802,11 +802,11 @@ void fuego::setFluxes() {
 /// Solve steady state problem. Uses Sundials Kinsol.
 /// It is more robust to solve the unsteady problem to steady state.
 /// Solves F(vars) = 0, where vars are the vector of variables at all grid points 
-///   and F is the equation for each of them. See fuego::Func.
+///   and F is the equation for each of them. See ignis::Func.
 ///
 ////////////////////////////////////////////////////////////////////////////////
 
-void fuego::solveSS() {
+void ignis::solveSS() {
 
     //---------- transfer variables into single array
 
@@ -872,7 +872,7 @@ void fuego::solveSS() {
 ///
 ////////////////////////////////////////////////////////////////////////////////
 
-int fuego::Func(const double *vars, double *F) {
+int ignis::Func(const double *vars, double *F) {
 
     //------------ transfer variables
 
@@ -923,13 +923,13 @@ int fuego::Func(const double *vars, double *F) {
 /// Kinsol calls this function, which then calls user_data's Func.
 /// @param varsKS    \input vector of all variables at all grid points (KS for KinSol).
 /// @param fvec      \output vector of all variables at all grid points.
-/// @param user_data \inout pointer to user data ("this" fuego object).
+/// @param user_data \inout pointer to user data ("this" ignis object).
 ///
 ////////////////////////////////////////////////////////////////////////////////
 
 int Func_kinsol(N_Vector varsKS, N_Vector fvec, void *user_data) {
 
-    fuego *flm = static_cast<fuego *>(user_data);
+    ignis *flm = static_cast<ignis *>(user_data);
 
     double *vars = N_VGetArrayPointer(varsKS);
     double *F = N_VGetArrayPointer(fvec);
@@ -946,7 +946,7 @@ int Func_kinsol(N_Vector varsKS, N_Vector fvec, void *user_data) {
 ///
 ////////////////////////////////////////////////////////////////////////////////
 
-void fuego::setQrad(vector<double> &Q) {
+void ignis::setQrad(vector<double> &Q) {
 
     vector<double> kabs, awts;
     double fvsoot = 0.0;
@@ -970,7 +970,7 @@ void fuego::setQrad(vector<double> &Q) {
 
 ////////////////////////////////////////////////////////////////////////////////
 ///
-/// Solve unsteady fuego problems.
+/// Solve unsteady ignis problems.
 /// Assumes y, T are initialized
 /// Two modes: write on every time step of size dt, or write on temperature steps of size dT.
 /// Default is in time --> Tmin, Tmax are zero --> dT = 0
@@ -983,7 +983,7 @@ void fuego::setQrad(vector<double> &Q) {
 ///
 ////////////////////////////////////////////////////////////////////////////////
 
-void fuego::solveUnsteady(const double nTauRun, const int nSteps, const bool doWriteTime, 
+void ignis::solveUnsteady(const double nTauRun, const int nSteps, const bool doWriteTime, 
                           const double Tmin, const double Tmax) {
 
     //---------- transfer variables into single array
@@ -1070,7 +1070,7 @@ void fuego::solveUnsteady(const double nTauRun, const int nSteps, const bool doW
 ///
 ////////////////////////////////////////////////////////////////////////////////
 
-int fuego::rhsf(const double *vars, double *dvarsdt) {
+int ignis::rhsf(const double *vars, double *dvarsdt) {
 
     //------------ transfer variables
 
@@ -1171,7 +1171,7 @@ int fuego::rhsf(const double *vars, double *dvarsdt) {
 ///
 ////////////////////////////////////////////////////////////////////////////////
 
-int fuego::rhsf_flamelet(const double *vars, double *dvarsdt) {
+int ignis::rhsf_flamelet(const double *vars, double *dvarsdt) {
 
     //------------ transfer variables
 
@@ -1311,7 +1311,7 @@ int fuego::rhsf_flamelet(const double *vars, double *dvarsdt) {
 ///
 ////////////////////////////////////////////////////////////////////////////////
 
-void fuego::setDerivative(const double vL, const double vR, 
+void ignis::setDerivative(const double vL, const double vR, 
                           const vector<double> &v, vector<double> &dvdx) {
 
     double vfL = vL;                            // first cell (left side)
@@ -1341,7 +1341,7 @@ void fuego::setDerivative(const double vL, const double vR,
 ///
 ////////////////////////////////////////////////////////////////////////////////
 
-void fuego::setDerivative2(const double vL, const double vR, 
+void ignis::setDerivative2(const double vL, const double vR, 
                            const vector<double> &v, vector<double> &d2vdx2) {
 
     double dvdxL = (v[0]-vL)  /dx[0]*2;               // first cell (left side)
@@ -1365,7 +1365,7 @@ void fuego::setDerivative2(const double vL, const double vR,
 ///
 ////////////////////////////////////////////////////////////////////////////////
 
-void fuego::setChi(const double _chi0) {
+void ignis::setChi(const double _chi0) {
 
     chi0 = _chi0;
     chi.resize(ngrd);
@@ -1383,12 +1383,12 @@ void fuego::setChi(const double _chi0) {
 /// @param t         \input current time (not used here as there are no explicit time dependencies, like S(t)
 /// @param varsCV    \input cvode variables (all vars at all grid points)
 /// @param dvarsdtCV \output cvode rates of all variables (all vars at all grid points)
-/// @param user_data \inout pointer to user data ("this" fuego object).
+/// @param user_data \inout pointer to user data ("this" ignis object).
 ///
 ////////////////////////////////////////////////////////////////////////////////
 
 int rhsf_cvode(realtype t, N_Vector varsCV, N_Vector dvarsdtCV, void *user_data) {
-    fuego *flm = static_cast<fuego *>(user_data);
+    ignis *flm = static_cast<ignis *>(user_data);
 
     double *vars  = N_VGetArrayPointer(varsCV);
     double *dvarsdt = N_VGetArrayPointer(dvarsdtCV);
