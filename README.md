@@ -1,4 +1,4 @@
-# Ignis--unsteady laminar flame solvers
+# Ignis&mdash;unsteady laminar flame solvers
 
 * Diffusion flame
 * Premixed flame
