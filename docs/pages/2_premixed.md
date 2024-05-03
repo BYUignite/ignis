@@ -16,6 +16,9 @@ where \f$j_k\f$ is given above. The temperature gradient at the \f$x=0\f$ face (
 
 For the premixed flame, the energy equation can be solved as described, including a radiative source term if desired, or the temperature profile can be specified directly and no energy equation solved. In the latter case, a discrete temperature profile is specified in the input file, and then linear interpolation is used to evaluate the temperature on the chosen computational grid. Such temperature profiles are commonly applied from measured experimental data in order to remove difficulty in accurate modeling of the profile. This is especially true when radiative effects and/or soot are present, or when soot modeling is the objective of the simulation, since errors in modeling the temperature have a strong impact on modeling the soot profile.
 
+## Soot equations
+Soot is treated as for the [diffusion flames](@ref diffusion).
+
 ## Verification
 
 The premixed flame code solutions were verified by comparison to output from Cantera for the same flame configuration, with identical results.

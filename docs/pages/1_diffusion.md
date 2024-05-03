@@ -4,6 +4,8 @@ Diffusion flames are modeled on a simple one-dimensional domain of fixed size \f
 
 As noted, there is no advective flame strain, but the fixed domain size imposes a diffusive strain, and at steady state there is a balance between reaction and diffusion. As the domain size is decreased, the diffusive mixing rate increases (through the larger imposed gradients), and the flame eventually extinguishes when the reaction rates cannot keep up with the mixing rates.
 
+This flame configuration was advocated by Pierce for application as a subgrid model for turbulent combustion \cite Pierce_2004, as it is neutral regarding opposed or anti-opposed flow, in contrast to, e.g., [laminar flamelets](@ref flamelet) that assume opposed flow.
+
 ## Species equations
 
 The equations solved for gas species mass fractions \f$y_k\f$ are
@@ -50,11 +52,11 @@ The equation for soot transport is give by
 
 $$\prtl{M_k}{t} = -\prtl{j_{M,k}}{x} + {S_{M_k}},$$
 
-Where \f$M_k\f$ is the \f$k^{th}\f$ soot mass-moment. Alternatively, it can be defined as the soot section \f$k\f$ of size \f$M_k\f$ and corresponding to the number of soot particles per \f$m^3\f$. \f${S_{M_k}}\f$ is the soot source term and is taken directly from [SootLib](https://github.com/BYUignite/sootlib) \cite Stephens_2023. It includes nucleation, growth, oxidation, and coagulation. \f$M_k\f$ is defined as
+Where \f$M_k\f$ is the \f$k^{th}\f$ soot mass-moment. Alternatively, it can be defined as the soot section \f$k\f$ of size \f$M_k\f$ and corresponding to the number of soot particles per \f$\text{m}^3\f$. \f${S_{M_k}}\f$ is the soot source term and is taken directly from [SootLib](https://github.com/BYUignite/sootlib) \cite Stephens_2023. It includes nucleation, growth, oxidation, and coagulation. \f$M_k\f$ is defined as
 
 $$ M_k = \int m^k n(m) dm $$
 
-where \f$n(m)\f$ is the number of soot particles per \f$m^3\f$ per kg of soot. Additionally, \f$m\f$ is the mass in \f$kg\f$ per soot particle. The value of \f$M_k\f$ when \f$ k = 0 \f$ is taken to be the number of soot particles per \f$m^3\f$. Likewise, when \f$ k = 1 \f$, \f$ M_k \f$ is representative of the \f$kg\f$ of soot per \f$m^3\f$, which is equal to the denisty of the soot times the mass fraction of the soot. Further values of \f$M_k\f$ can be shown, but do not have as interesting of physical interpretations. The average size of a soot particle, \f$\langle m \rangle \f$ is defined as \f$\frac{M_1}{M_0}\f$, or the average mass in \f$kg\f$ per soot particle. Each soot mass-moment is spaced from its predecessor by about 20 orders of magnitude. Thus, to help solve this equation, the soot moments are multiplied by a scaling factor so their values are all about the same order of magnitude. This helps the solver converge, and after the solve, the mass moments are divided by the same scaling factor to revert them back to their original order of magnitude.
+where \f$n(m)\f$ is the number of soot particles per \f$\text{m}^3\f$ per kg of soot. Additionally, \f$m\f$ is the mass in kg per soot particle. The value of \f$M_k\f$ when \f$ k = 0 \f$ is taken to be the number of soot particles per \f$\text{m}^3\f$. Likewise, when \f$ k = 1 \f$, \f$ M_k \f$ is representative of the kg of soot per \f$\text{m}^3\f$, which is equal to the denisty of the soot times the mass fraction of the soot. Further values of \f$M_k\f$ can be shown, but do not have as interesting of physical interpretations. The average size of a soot particle, \f$\langle m \rangle \f$ is defined as \f$\frac{M_1}{M_0}\f$, or the average mass in kg per soot particle. Each soot mass-moment is spaced from its predecessor by about 20 orders of magnitude. Thus, to help solve this equation, the soot moments are multiplied by a scaling factor so their values are all about the same order of magnitude. This helps the solver converge, and after the solve, the mass moments are divided by the same scaling factor to revert them back to their original order of magnitude.
 
 The flux of each soot mass moment, \f$j_{M_{k}}\f$ is given by
 
