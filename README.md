@@ -1,4 +1,5 @@
-Unsteady laminar flame solver with three flame types:
+# Ignis--unsteady laminar flame solvers
+
 * Diffusion flame
 * Premixed flame
 * Flamelet (mixture fraction coordinate)
