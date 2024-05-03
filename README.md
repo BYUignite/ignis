@@ -6,7 +6,7 @@
 
 Includes soot formation and radiative heat transfer.
 
-## Build and installation instructions
+## Build and installation
 1. Create and navigate into a top-level `build` directory
 2. Configure CMake: `cmake ..`
 3. Build Ignis: `make`
@@ -14,7 +14,7 @@ Includes soot formation and radiative heat transfer.
 
 Executable is installed in `/run/ignis.x`
 
-## Required software:
+## Required software
 * CMake 3.15+
 * C++17
 * [SUNDIALS](https://computing.llnl.gov/projects/sundials)
