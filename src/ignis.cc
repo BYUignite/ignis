@@ -1197,7 +1197,11 @@ int ignis::rhsf_flamelet(const double *vars, double *dvarsdt) {
 
     vector<vector<double> > rr(ngrd, vector<double>(nsp));
     vector<double>          rho(ngrd);
-    vector<double>          mu(ngrd);
+    vector<double>          mu; if(doSoot) mu.resize(ngrd);
+    vector<double>          D;  if(doSoot) D.resize(ngrd);      // D mixf = thermal diffusivity
+
+    vector<double> yPAH; if(doSoot) yPAH.resize(6,0.0);
+    vector<double> yGasForSM; if(doSoot) yGasForSM.resize( (size_t)gasSp::size );
 
     vector<double>          cp(ngrd);
     vector<vector<double> > hsp(ngrd, vector<double>(nsp));
@@ -1228,7 +1232,10 @@ int ignis::rhsf_flamelet(const double *vars, double *dvarsdt) {
 
         rho[i] = gas->density();                        // kg/m3
         cp[i]  = gas->cp_mass();
-        mu[i]  = trn->viscosity();
+        if(doSoot) {
+            mu[i]  = trn->viscosity();
+            D[i]   = trn->thermalConductivity()/(rho[i]*cp[i]);
+        }
     }
 
     //------------ species
@@ -1286,47 +1293,52 @@ int ignis::rhsf_flamelet(const double *vars, double *dvarsdt) {
     //---------- soot
 
     if(doSoot) {
-        vector<double>          C(ngrd);                         // velocity (convective) term
-        vector<vector<double> > S(ngrd, vector<double>(nsoot));  // source term
-        vector<double>          B(ngrd);                         // dzdy or sqrt(chi/(2*D))
-        vector<vector<double> > mr(ngrd, vector<double>(nsoot)); // sootvars/rho
-        vector<double>          rhoBD(ngrd);                     // rho[i]*B[i]*D
-        vector<double>          muB_T(ngrd);                     // 0.554*mu[i]*B[i]/T[i]
+        vector<double>          C(ngrd);           // velocity (convective) term
+        vector<double>          B(ngrd);           // dzdy or sqrt(chi/(2*D))
+        vector<double>          mr(ngrd);          // sootvars/rho
+        vector<double>          rhoBD(ngrd);       // rho[i]*B[i]*D
+        vector<double>          muB_T(ngrd);       // 0.556*mu[i]*B[i]/T[i]
+        double                  S;                 // source term
         
-        double                  D = 0.00035;  // avg thermal diffusivity; placeholder for now jansenpb
-
         for (int i=0; i<ngrd; i++) {
-            B[i]     = sqrt(chi[i]/(2*D));    // fill beta
-            rhoBD[i] = rho[i]*B[i]*D;         // for the setDerivative function drhoDBdz
-            muB_T[i] = 0.554*mu[i]*B[i]/T[i]; // for the setDerivative function dmuB_Tdz
+            B[i]     = sqrt(chi[i]/(2*D[i]));    // fill beta
+            rhoBD[i] = rho[i]*B[i]*D[i];         // for the setDerivative function drhoDBdz
+            muB_T[i] = 0.556*mu[i]*B[i]/T[i]; // for the setDerivative function dmuB_Tdz
         }
 
         vector<double> drhoDBdz(ngrd);
-        setDerivative(rho[0]*B[0]*D, rho[ngrd-1]*B[ngrd-1]*D, rhoBD, drhoDBdz);
+        setDerivative(0.0, 0.0, rhoBD, drhoDBdz);
 
         vector<double> dmuB_Tdz(ngrd);
-        setDerivative(0.554*mu[0]*B[0]/TLbc, 0.554*mu[ngrd-1]*B[ngrd-1]/TRbc, muB_T, dmuB_Tdz);
+        setDerivative(0.0, 0.0, muB_T, dmuB_Tdz);
         
         for (int i=0; i<ngrd; i++) {
-            C[i] = 0.554*mu[i]/(rho[i]*T[i])* B[i]*B[i]*dTdz[i]- B[i]/rho[i]*drhoDBdz[i];
+            C[i] = 0.556*mu[i]/(rho[i]*T[i])* B[i]*B[i]*dTdz[i]- B[i]/rho[i]*drhoDBdz[i];
+            for(size_t kSootGases=0; kSootGases<(size_t)gasSp::size; kSootGases++) {
+                size_t kgas = gas->speciesIndex(gasSpMapIS[kSootGases]);
+                yGasForSM[kSootGases] = (kgas != Cantera::npos) ? y[i][kgas] : 0.0;
+            }
+            SMstate->setState(T[i], P, rho[i], mu[i], yGasForSM, yPAH, sootvars[i], nsoot);
+            SM->setSourceTerms(*SMstate);
             for (int k=0; k<nsoot; k++) {
-                mr[i][k] = sootvars[i][k]/rho[i];
-                S[i][k]  = mr[i][k]/rho[i]* (B[i]*dTdz[i]*dmuB_Tdz[i]+ B[i]*B[i]*0.554*mu[i]/T[i]*d2Tdz2[i])+
-                           SM->sources.sootSources[k]/rho[i];
+                mr[i] = sootvars[i][k]/rho[i];
+                S     = mr[i]/rho[i]* (B[i]*dTdz[i]*dmuB_Tdz[i]+ B[i]*B[i]*0.556*mu[i]/T[i]*d2Tdz2[i])+
+                        SM->sources.sootSources[k]/rho[i];
                 if (C[i] > 0) {
-                    dvarsdt[Ia(i,nsp+k)] = C[i]*(mr[i][k]-mr[i-1][k])/dx[i] + S[i][k];
+                    dvarsdt[Ia(i,nsp+k)] = C[i]*(mr[i]-mr[i-1])/dx[i] + S;
                     dvarsdt[Ia(i,nsp+k)] /= sootScales[k];
                 }
                 else {
-                    dvarsdt[Ia(i,nsp+k)] = C[i]*(mr[i+1][k]-mr[i][k])/dx[i] + S[i][k];
+                    dvarsdt[Ia(i,nsp+k)] = C[i]*(mr[i+1]-mr[i])/dx[i] + S;
                     dvarsdt[Ia(i,nsp+k)] /= sootScales[k];
                 }
-
-
             }
-
+            for(size_t kSootGases=0; kSootGases<(size_t)gasSp::size; kSootGases++) {
+                size_t kgas = gas->speciesIndex(gasSpMapIS[kSootGases]);
+                if(kgas != Cantera::npos)
+                    dvarsdt[Ia(i,kgas)] += SM->sources.gasSources[kSootGases];
+            }
         }
-
     }
 
 
