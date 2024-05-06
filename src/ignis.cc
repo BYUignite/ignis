@@ -291,7 +291,7 @@ void ignis::writeFile(const string fname) {
             ofile << setw(19) << y[i][k];
         if(doSoot) { 
             for(int k=0; k<nsoot; k++)
-                ofile << setw(19) << sootvars[i][k];         // todo: make sure the right vars are called
+                ofile << setw(19) << sootvars[i][k]; 
         }
     }
 
@@ -993,7 +993,7 @@ void ignis::solveUnsteady(const double nTauRun, const int nSteps, const bool doW
         for(size_t k=0; k<nsp; k++)
             vars[Ia(i,k)] = y[i][k];
         if(doSoot) {
-            for(size_t k=nsp; k<nsp+nsoot; k++) {  // jansenpb
+            for(size_t k=nsp; k<nsp+nsoot; k++) { 
                 vars[Ia(i,k)] = sootvars[i][k-nsp]/sootScales[k-nsp];    // dont't forget sootscales
             }
         }
@@ -1053,8 +1053,10 @@ void ignis::solveUnsteady(const double nTauRun, const int nSteps, const bool doW
         for(size_t k=0; k<nsp; k++)
             y[i][k] = vars[Ia(i,k)];
         if(doSoot) {
-            for(size_t k=nsp; k<nsp+nsoot; k++)
-                sootvars[i][k-nsp] = vars[Ia(i,k)]*sootScales[k-nsp];    // jansenpb
+            for(size_t k=nsp; k<nsp+nsoot; k++) {
+                sootvars[i][k-nsp] = vars[Ia(i,k)]*sootScales[k-nsp];
+                if (isFlamelet) sootvars[i][k-nsp] = vars[Ia(i,k)] * gas->density();
+            }
         }
         T[i] = vars[Ia(i,nvar-1)]*Tscale;      // dolh comment to remove h
     }
@@ -1079,7 +1081,7 @@ int ignis::rhsf(const double *vars, double *dvarsdt) {
             y[i][k] = vars[Ia(i,k)];
         if(doSoot) {
             for(size_t k=nsp; k<nsp+nsoot; k++) {
-                sootvars[i][k-nsp] = vars[Ia(i,k)]*sootScales[k-nsp];    // jansenpb
+                sootvars[i][k-nsp] = vars[Ia(i,k)]*sootScales[k-nsp]; 
             }
         }
         T[i] = vars[Ia(i,nvar-1)]*Tscale;      // dolh comment to remove h
@@ -1120,7 +1122,7 @@ int ignis::rhsf(const double *vars, double *dvarsdt) {
         if(doSoot) {
             for(size_t k=nsp; k<nsp+nsoot; k++) {
                 dvarsdt[Ia(i,k)] = -(flux_soot[i+1][k-nsp] - flux_soot[i][k-nsp])/(dx[i]) + SM->sources.sootSources[k-nsp];
-                dvarsdt[Ia(i,k)] /= sootScales[k-nsp];     //jansenpb; to match Tscale below; line 913 
+                dvarsdt[Ia(i,k)] /= sootScales[k-nsp];     //to match Tscale below
             }
             // loop over the gas species in the soot model and compare with Cantera
             // update the gas source terms from the soot model
@@ -1180,7 +1182,7 @@ int ignis::rhsf_flamelet(const double *vars, double *dvarsdt) {
             y[i][k] = vars[Ia(i,k)];
         if(doSoot)
             for(size_t k=nsp; k<nsp+nsoot; k++)
-                sootvars[i][k-nsp] = vars[Ia(i,k)]*sootScales[k-nsp];    // jansenpb
+                sootvars[i][k-nsp] = vars[Ia(i,k)]*sootScales[k-nsp];     
         T[i] = vars[Ia(i,nvar-1)]*Tscale;      // dolh comment to remove h
     }
 
@@ -1195,6 +1197,7 @@ int ignis::rhsf_flamelet(const double *vars, double *dvarsdt) {
 
     vector<vector<double> > rr(ngrd, vector<double>(nsp));
     vector<double>          rho(ngrd);
+    vector<double>          mu(ngrd);
 
     vector<double>          cp(ngrd);
     vector<vector<double> > hsp(ngrd, vector<double>(nsp));
@@ -1225,6 +1228,7 @@ int ignis::rhsf_flamelet(const double *vars, double *dvarsdt) {
 
         rho[i] = gas->density();                        // kg/m3
         cp[i]  = gas->cp_mass();
+        mu[i]  = trn->viscosity();
     }
 
     //------------ species
@@ -1280,6 +1284,51 @@ int ignis::rhsf_flamelet(const double *vars, double *dvarsdt) {
     //     dvarsdt[Ia(i,nvar-1)] = 0.0;
 
     //---------- soot
+
+    if(doSoot) {
+        vector<double>          C(ngrd);                         // velocity (convective) term
+        vector<vector<double> > S(ngrd, vector<double>(nsoot));  // source term
+        vector<double>          B(ngrd);                         // dzdy or sqrt(chi/(2*D))
+        vector<vector<double> > mr(ngrd, vector<double>(nsoot)); // sootvars/rho
+        vector<double>          rhoBD(ngrd);                     // rho[i]*B[i]*D
+        vector<double>          muB_T(ngrd);                     // 0.554*mu[i]*B[i]/T[i]
+        
+        double                  D = 0.00035;  // avg thermal diffusivity; placeholder for now jansenpb
+
+        for (int i=0; i<ngrd; i++) {
+            B[i]     = sqrt(chi[i]/(2*D));    // fill beta
+            rhoBD[i] = rho[i]*B[i]*D;         // for the setDerivative function drhoDBdz
+            muB_T[i] = 0.554*mu[i]*B[i]/T[i]; // for the setDerivative function dmuB_Tdz
+        }
+
+        vector<double> drhoDBdz(ngrd);
+        setDerivative(rho[0]*B[0]*D, rho[ngrd-1]*B[ngrd-1]*D, rhoBD, drhoDBdz);
+
+        vector<double> dmuB_Tdz(ngrd);
+        setDerivative(0.554*mu[0]*B[0]/TLbc, 0.554*mu[ngrd-1]*B[ngrd-1]/TRbc, muB_T, dmuB_Tdz);
+        
+        for (int i=0; i<ngrd; i++) {
+            C[i] = 0.554*mu[i]/(rho[i]*T[i])* B[i]*B[i]*dTdz[i]- B[i]/rho[i]*drhoDBdz[i];
+            for (int k=0; k<nsoot; k++) {
+                mr[i][k] = sootvars[i][k]/rho[i];
+                S[i][k]  = mr[i][k]/rho[i]* (B[i]*dTdz[i]*dmuB_Tdz[i]+ B[i]*B[i]*0.554*mu[i]/T[i]*d2Tdz2[i])+
+                           SM->sources.sootSources[k]/rho[i];
+                if (C[i] > 0) {
+                    dvarsdt[Ia(i,nsp+k)] = C[i]*(mr[i][k]-mr[i-1][k])/dx[i] + S[i][k];
+                    dvarsdt[Ia(i,nsp+k)] /= sootScales[k];
+                }
+                else {
+                    dvarsdt[Ia(i,nsp+k)] = C[i]*(mr[i+1][k]-mr[i][k])/dx[i] + S[i][k];
+                    dvarsdt[Ia(i,nsp+k)] /= sootScales[k];
+                }
+
+
+            }
+
+        }
+
+    }
+
 
 
     //-------------
