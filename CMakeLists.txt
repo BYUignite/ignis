@@ -19,7 +19,7 @@ set(CMAKE_CXX_EXTENSIONS NO)
 
 # ---- build options ----
 
-option(IGNIS_BUILD_DOCS "Build ignis documentation" ON)
+option(IGNIS_BUILD_DOCS "Build ignis documentation" OFF)
 
 ################### MAIN PROJECT TARGETS #####################
 

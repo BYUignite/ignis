@@ -28,7 +28,7 @@ Optional software:
 * [graphviz](https://graphviz.org/download/) (for Doxygen)
 
 ## Docker
-A Dockerfile is included with the code in the `docker` folder. With [docker](https://www.docker.com/) installed you can build fully functional image with the code and all dependencies. See `/docker/README.md`.
+A Dockerfile is included with the code in the `docker` folder. With [docker](https://www.docker.com/) installed you can build fully functional image with the code and all dependencies. See `/docker/Dockerfile`. A video showing how to use it is available [here](https://youtu.be/9RENZedC2gk).
 
 ## Documentation
 Documentation is availale at [ignite.byu.edu/ignis_documentation](https://ignite.byu.edu/ignis_documentation).
