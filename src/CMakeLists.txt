@@ -10,12 +10,7 @@ target_sources(ignis.x PRIVATE main.cc
                                ignis.cc 
                                streams.cc)
 
-if(APPLE)
-    find_library(ACCELERATE Accelerate)
-    set_property(TARGET ignis.x PROPERTY INSTALL_RPATH_USE_LINK_PATH TRUE)  # adds LC_RPATH to executable
-else()
-    find_package(LAPACK)
-endif()
+set_property(TARGET ignis.x PROPERTY INSTALL_RPATH_USE_LINK_PATH TRUE)  # adds LC_RPATH to executable
 
 find_package(radlib)
 find_package(sootlib)
@@ -30,6 +25,6 @@ target_include_directories(ignis.x PRIVATE "/usr/local/include")
 target_link_directories(ignis.x PRIVATE "$ENV{CONDA_PREFIX}/lib")
 target_link_directories(ignis.x PRIVATE "/usr/local/lib")
 
-target_link_libraries(ignis.x radlib::radlib sootlib::sootlib ${CANTERA} ${YAML} ${KINSOL} ${CVODES} ${ACCELERATE} LAPACK::LAPACK)
+target_link_libraries(ignis.x radlib::radlib sootlib::sootlib ${CANTERA} ${YAML} ${KINSOL} ${CVODES} )
 
 install(TARGETS ignis.x DESTINATION "${PROJECT_SOURCE_DIR}/run")
