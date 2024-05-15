@@ -1055,7 +1055,10 @@ void ignis::solveUnsteady(const double nTauRun, const int nSteps, const bool doW
         if(doSoot) {
             for(size_t k=nsp; k<nsp+nsoot; k++) {
                 sootvars[i][k-nsp] = vars[Ia(i,k)]*sootScales[k-nsp];
-                if (isFlamelet) sootvars[i][k-nsp] = vars[Ia(i,k)] * gas->density();
+                if (isFlamelet) {
+                    gas->setState_TP(T[i], P);
+                    sootvars[i][k-nsp] = vars[Ia(i,k)] * gas->density();
+                }
             }
         }
         T[i] = vars[Ia(i,nvar-1)]*Tscale;      // dolh comment to remove h
@@ -1235,6 +1238,8 @@ int ignis::rhsf_flamelet(const double *vars, double *dvarsdt) {
         if(doSoot) {
             mu[i]  = trn->viscosity();
             D[i]   = trn->thermalConductivity()/(rho[i]*cp[i]);
+            for (size_t k=0; k<nsoot; k++)
+                sootvars[i][k] *= rho[i];
         }
     }
 
@@ -1324,12 +1329,21 @@ int ignis::rhsf_flamelet(const double *vars, double *dvarsdt) {
                 mr[i] = sootvars[i][k]/rho[i];
                 S     = mr[i]/rho[i]* (B[i]*dTdz[i]*dmuB_Tdz[i]+ B[i]*B[i]*0.556*mu[i]/T[i]*d2Tdz2[i])+
                         SM->sources.sootSources[k]/rho[i];
-                if (C[i] > 0) {
-                    dvarsdt[Ia(i,nsp+k)] = C[i]*(mr[i]-mr[i-1])/dx[i] + S;
+                if (C[i] < 0) {
+                    if (i==0) { 
+                        dvarsdt[Ia(i,nsp+k)] = C[i]*(mr[i]-0)/(dx[i]/2) + S;
+                        //cout << mr[-1] << " " << i << " " << mr[i] << endl; 
+                    }
+                    else {
+                        dvarsdt[Ia(i,nsp+k)] = C[i]*(mr[i]-mr[i-1])/dx[i] + S;
+                    }
                     dvarsdt[Ia(i,nsp+k)] /= sootScales[k];
                 }
                 else {
-                    dvarsdt[Ia(i,nsp+k)] = C[i]*(mr[i+1]-mr[i])/dx[i] + S;
+                    if (i==ngrd-1) dvarsdt[Ia(i,nsp+k)] = C[i]*(0-mr[i])/(dx[i]/2) + S;
+                    else {
+                        dvarsdt[Ia(i,nsp+k)] = C[i]*(mr[i+1]-mr[i])/dx[i] + S;
+                    }
                     dvarsdt[Ia(i,nsp+k)] /= sootScales[k];
                 }
             }

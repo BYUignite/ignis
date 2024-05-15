@@ -7,7 +7,7 @@ ngrd:         50            # number of grid points
 nTauSS:       5.0           # number of diffusive mixing timescales to run to get to steady state
 nsaveSS:      10            # number of save files when solving steady
 
-chi0:         20            # dissipation rate multiplier (value at mixf=0)
+chi0:         100 #20            # dissipation rate multiplier (value at mixf=0)
 
 #-----------------
 
@@ -24,5 +24,5 @@ RBC:
 
 #-----------------
 
-doSoot:        false        # flag turn on/off radiation
+doSoot:        true        # flag turn on/off radiation
 nsoot:         2            # number of soot variables
