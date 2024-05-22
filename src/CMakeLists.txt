@@ -8,7 +8,8 @@ target_sources(ignis.x PRIVATE main.cc
                                driver_diffusion_table.cc 
                                driver_flamelet.cc 
                                ignis.cc 
-                               streams.cc)
+                               streams.cc
+                               c2h4red.cc)
 
 set_property(TARGET ignis.x PROPERTY INSTALL_RPATH_USE_LINK_PATH TRUE)  # adds LC_RPATH to executable
 

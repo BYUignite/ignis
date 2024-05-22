@@ -10,6 +10,7 @@
 #include <fstream>
 #include <sstream>
 #include <numeric>
+#include <cmath>
 
 
 using namespace std;
@@ -1298,9 +1299,22 @@ int ignis::rhsf_flamelet(const double *vars, double *dvarsdt) {
     //---------- soot
 
     if(doSoot) {
+
+        double LeS = 1000.0;  // soot Lewis number
+
+        vector<double> d2sdz2(ngrd);
+        vector<double> ss(ngrd);                   // intermediate transfer array
+        for(size_t k=0; k<nsoot; k++) {
+            for(size_t i=0; i<ngrd; i++)
+                ss[i] = sootvars[i][k];
+            setDerivative2(0.0, 0.0, ss, d2sdz2);
+            for(size_t i=0; i<ngrd; i++)
+                dvarsdt[Ia(i,k+nsp)] = 0.5*chi[i]*d2sdz2[i]/LeS;  // account for diffusion
+        }
+
+
         vector<double>          C(ngrd);           // velocity (convective) term
         vector<double>          B(ngrd);           // dzdy or sqrt(chi/(2*D))
-        vector<double>          mr(ngrd);          // sootvars/rho
         vector<double>          rhoBD(ngrd);       // rho[i]*B[i]*D
         vector<double>          muB_T(ngrd);       // 0.556*mu[i]*B[i]/T[i]
         double                  S;                 // source term
@@ -1308,7 +1322,7 @@ int ignis::rhsf_flamelet(const double *vars, double *dvarsdt) {
         for (int i=0; i<ngrd; i++) {
             B[i]     = sqrt(chi[i]/(2*D[i]));    // fill beta
             rhoBD[i] = rho[i]*B[i]*D[i];         // for the setDerivative function drhoDBdz
-            muB_T[i] = 0.556*mu[i]*B[i]/T[i]; // for the setDerivative function dmuB_Tdz
+            muB_T[i] = mu[i]*B[i]/T[i]; // for the setDerivative function dmuB_Tdz
         }
 
         vector<double> drhoDBdz(ngrd);
@@ -1318,7 +1332,8 @@ int ignis::rhsf_flamelet(const double *vars, double *dvarsdt) {
         setDerivative(0.0, 0.0, muB_T, dmuB_Tdz);
         
         for (int i=0; i<ngrd; i++) {
-            C[i] = 0.556*mu[i]/(rho[i]*T[i])* B[i]*B[i]*dTdz[i]- B[i]/rho[i]*drhoDBdz[i];
+            C[i] = 0.556*mu[i]/(rho[i]*T[i])* B[i]*B[i]*dTdz[i]-
+                   B[i]/rho[i]*drhoDBdz[i];
             for(size_t kSootGases=0; kSootGases<(size_t)gasSp::size; kSootGases++) {
                 size_t kgas = gas->speciesIndex(gasSpMapIS[kSootGases]);
                 yGasForSM[kSootGases] = (kgas != Cantera::npos) ? y[i][kgas] : 0.0;
@@ -1326,26 +1341,22 @@ int ignis::rhsf_flamelet(const double *vars, double *dvarsdt) {
             SMstate->setState(T[i], P, rho[i], mu[i], yGasForSM, yPAH, sootvars[i], nsoot);
             SM->setSourceTerms(*SMstate);
             for (int k=0; k<nsoot; k++) {
-                mr[i] = sootvars[i][k]/rho[i];
-                S     = mr[i]/rho[i]* (B[i]*dTdz[i]*dmuB_Tdz[i]+ B[i]*B[i]*0.556*mu[i]/T[i]*d2Tdz2[i])+
+                S     = 0.556*(sootvars[i][k]/rho[i])/rho[i]* (B[i]*dTdz[i]*dmuB_Tdz[i]+ B[i]*B[i]*mu[i]/T[i]*d2Tdz2[i])+
                         SM->sources.sootSources[k]/rho[i];
                 if (C[i] < 0) {
-                    if (i==0) { 
-                        dvarsdt[Ia(i,nsp+k)] = C[i]*(mr[i]-0)/(dx[i]/2) + S;
-                        //cout << mr[-1] << " " << i << " " << mr[i] << endl; 
-                    }
-                    else {
-                        dvarsdt[Ia(i,nsp+k)] = C[i]*(mr[i]-mr[i-1])/dx[i] + S;
-                    }
-                    dvarsdt[Ia(i,nsp+k)] /= sootScales[k];
+                    if (i==0)  
+                        dvarsdt[Ia(i,nsp+k)] += C[i]*(sootvars[i][k]/rho[i]-0)/(dx[i]/2);
+                    else 
+                        dvarsdt[Ia(i,nsp+k)] += C[i]*(sootvars[i][k]/rho[i]-sootvars[i-1][k]/rho[i-1])/dx[i] + S;
                 }
                 else {
-                    if (i==ngrd-1) dvarsdt[Ia(i,nsp+k)] = C[i]*(0-mr[i])/(dx[i]/2) + S;
-                    else {
-                        dvarsdt[Ia(i,nsp+k)] = C[i]*(mr[i+1]-mr[i])/dx[i] + S;
-                    }
-                    dvarsdt[Ia(i,nsp+k)] /= sootScales[k];
+                    if (i==ngrd-1) 
+                        dvarsdt[Ia(i,nsp+k)] += C[i]*(0-sootvars[i][k]/rho[i])/(dx[i]/2);
+                    else 
+                        dvarsdt[Ia(i,nsp+k)] += C[i]*(sootvars[i+1][k]/rho[i+1]-sootvars[i][k]/rho[i])/dx[i];
                 }
+                dvarsdt[Ia(i,nsp+k)] += S;
+                dvarsdt[Ia(i,nsp+k)] /= sootScales[k];
             }
             for(size_t kSootGases=0; kSootGases<(size_t)gasSp::size; kSootGases++) {
                 size_t kgas = gas->speciesIndex(gasSpMapIS[kSootGases]);
@@ -1440,15 +1451,39 @@ void ignis::setDerivative2(const double vL, const double vR,
 ///
 ////////////////////////////////////////////////////////////////////////////////
 
+// nimig18: https://stackoverflow.com/questions/27229371/inverse-error-function-in-c
+
+float myErfInv2(float x){
+   float tt1, tt2, lnx, sgn;
+   sgn = (x < 0) ? -1.0f : 1.0f;
+
+   x = (1 - x)*(1 + x);        // x = 1 - x*x;
+   lnx = logf(x);
+
+   tt1 = 2/(M_PI*0.147) + 0.5f * lnx;
+   tt2 = 1/(0.147) * lnx;
+
+   return(sgn*sqrtf(-tt1 + sqrtf(tt1*tt1 - tt2)));
+}
+
 void ignis::setChi(const double _chi0) {
 
     chi0 = _chi0;
     chi.resize(ngrd);
-    double d, e;
+
+    // tanh
+    // double d, e;
+    // for(size_t i=0; i<ngrd; i++) {
+    //     d = 2*x[i]-1;
+    //     e = 1.0-d*d;
+    //     chi[i] = chi0*e*e;
+    // }
+
+    // erf
+    double d;
     for(size_t i=0; i<ngrd; i++) {
-        d = 2*x[i]-1;
-        e = 1.0-d*d;
-        chi[i] = chi0*e*e;
+        d = myErfInv2(2*x[i]-1);
+        chi[i] = chi0*exp(-2.0*d*d);
     }
 }
 
