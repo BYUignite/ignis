@@ -1347,7 +1347,7 @@ int ignis::rhsf_flamelet(const double *vars, double *dvarsdt) {
                     if (i==0)  
                         dvarsdt[Ia(i,nsp+k)] += C[i]*(sootvars[i][k]/rho[i]-0)/(dx[i]/2);
                     else 
-                        dvarsdt[Ia(i,nsp+k)] += C[i]*(sootvars[i][k]/rho[i]-sootvars[i-1][k]/rho[i-1])/dx[i] + S;
+                        dvarsdt[Ia(i,nsp+k)] += C[i]*(sootvars[i][k]/rho[i]-sootvars[i-1][k]/rho[i-1])/dx[i];
                 }
                 else {
                     if (i==ngrd-1) 
