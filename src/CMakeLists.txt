@@ -15,6 +15,7 @@ set_property(TARGET ignis.x PROPERTY INSTALL_RPATH_USE_LINK_PATH TRUE)  # adds L
 
 find_package(radlib)
 find_package(sootlib)
+find_package(HighFive REQUIRED)
 find_library(CANTERA NAMES cantera_shared cantera)
 find_library(KINSOL sundials_kinsol)
 find_library(CVODES sundials_cvodes)
@@ -27,5 +28,6 @@ target_link_directories(ignis.x PRIVATE "$ENV{CONDA_PREFIX}/lib")
 target_link_directories(ignis.x PRIVATE "/usr/local/lib")
 
 target_link_libraries(ignis.x radlib::radlib sootlib::sootlib ${CANTERA} ${YAML} ${KINSOL} ${CVODES} )
+target_link_libraries(ignis.x HighFive)
 
 install(TARGETS ignis.x DESTINATION "${PROJECT_SOURCE_DIR}/run")

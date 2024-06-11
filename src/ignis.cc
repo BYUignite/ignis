@@ -4,6 +4,8 @@
 #include "solver_kinsol.h"
 #include "integrator_cvode.h"
 
+#include <highfive/highfive.hpp>
+
 #include <iostream>
 #include <algorithm>        // max
 #include <iomanip>
@@ -11,10 +13,12 @@
 #include <sstream>
 #include <numeric>
 #include <cmath>
+#include <highfive/highfive.hpp>
 
 
 using namespace std;
 using soot::sootModel, soot::state, soot::gasSp, soot::gasSpMapIS, soot::gasSpMapES;
+using HighFive::File, HighFive::DataSet;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -201,6 +205,82 @@ void ignis::setGrid(double _L) {
         fr[i] = 1.0-fl[i];
     }
 
+}
+////////////////////////////////////////////////////////////////////////////////
+/// 
+///  There is a single hdf5 file, with multiple groups.
+///  Whenever you would normally write a file with x, mixf, T, h, rho, y, etc.,
+///  instead, you make a new group inside the one hdf5 file.
+///  @param gname \input write output to this group name
+/// 
+////////////////////////////////////////////////////////////////////////////////
+
+void ignis::writeFileHdf5(const string gname) {
+
+    vector<double> mixf;
+    double mixfLbc;
+    double mixfRbc;
+    if(!isPremixed) {
+        mixf.resize(ngrd);
+        for(int i=0; i<ngrd; i++)
+            mixf[i] = strm->getMixtureFraction(&y[i][0]);
+        mixfLbc = strm->getMixtureFraction(&yLbc[0]);
+        mixfRbc = strm->getMixtureFraction(&yRbc[0]);
+    }
+
+    vector<double> rho(ngrd);
+    vector<double> h(ngrd);
+    for(int i=0; i<ngrd; i++) {
+        gas->setState_TPY(T[i], P, &y[i][0]);
+        rho[i] = gas->density();
+        h[i] = gas->enthalpy_mass();
+    }
+
+    gas->setState_TPY(TLbc, P, &yLbc[0]);
+    double rhoLbc = gas->density();
+    gas->setState_TPY(TRbc, P, &yRbc[0]);
+    double rhoRbc = gas->density();
+
+    //---------- x, mixf, T, h, rho, y, soot
+
+    vector<double>         field;
+    vector<vector<double>> field2;
+
+    File f(gname, File::Truncate);
+
+    field = x; field.insert(field.begin(), 0.0); field.push_back(L);
+    DataSet dset = f.createDataSet("x", field);
+    dset.createAttribute<string>("units", "m");
+
+    if(!isPremixed) {
+        field = mixf; field.insert(field.begin(), mixfLbc); field.push_back(mixfRbc);
+        dset = f.createDataSet("mixf", field);
+        dset.createAttribute<string>("units", "--");
+    }
+
+    field = T; field.insert(field.begin(), TLbc); field.push_back(isPremixed ? T.back() : TRbc);
+    dset = f.createDataSet("T", field);
+    dset.createAttribute<string>("units", "K");
+
+    field = h; field.insert(field.begin(), hLbc); field.push_back(isPremixed ? h.back() : hRbc);
+    dset = f.createDataSet("h", field);
+    dset.createAttribute<string>("units", "J/kg");
+
+    field = rho; field.insert(field.begin(), rhoLbc); field.push_back(isPremixed ? rho.back() : rhoRbc);
+    dset = f.createDataSet("rho", field);
+    dset.createAttribute<string>("units", "kg/m3");
+
+    field2 = y; field2.insert(field2.begin(), yLbc); field2.push_back(isPremixed ? y.back() : yRbc);
+    dset = f.createDataSet("y", field2);
+    dset.createAttribute<string>("units", "-- mass fractions");
+    dset.createAttribute<vector<string>>("species names", gas->speciesNames());
+
+    if(doSoot) {
+        vector<double> sootBC(nsoot, 0.0);
+        field2 = sootvars; field2.insert(field2.begin(), sootBC); field2.push_back(isPremixed ? sootvars.back() : sootBC);
+        dset = f.createDataSet("soot", field2);
+        dset.createAttribute<string>("units", "mass moment: kg^k/m3");
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
