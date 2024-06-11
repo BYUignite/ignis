@@ -218,7 +218,7 @@ void ignis::setGrid(double _L) {
 /// 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ignis::writeFileHdf5(const string gname) {
+void ignis::writeFileHdf5(const string gname, const string timeType) {
 
     vector<double> mixf;
     double mixfLbc;
@@ -251,9 +251,14 @@ void ignis::writeFileHdf5(const string gname) {
 
     Group grp = fh5->createGroup(gname);
 
+    grp.createAttribute<string>("caseType", isPremixed ? "premixed" : (isFlamelet ? "flamelet" : "diffusion"));
+    grp.createAttribute<double>(isFlamelet ? "Chi0" : "L", isFlamelet ? chi0 : L);
+    grp.createAttribute<string>("timeType", timeType);
+
     field = x; field.insert(field.begin(), 0.0); field.push_back(L);
     DataSet dset = grp.createDataSet("x", field);
     dset.createAttribute<string>("units", "m");
+    dset.createAttribute<string>("note", "grid cell positions");
 
     if(!isPremixed) {
         field = mixf; field.insert(field.begin(), mixfLbc); field.push_back(mixfRbc);
@@ -275,7 +280,8 @@ void ignis::writeFileHdf5(const string gname) {
 
     field2 = y; field2.insert(field2.begin(), yLbc); field2.push_back(isPremixed ? y.back() : yRbc);
     dset = grp.createDataSet("y", field2);
-    dset.createAttribute<string>("units", "-- mass fractions");
+    dset.createAttribute<string>("units", "--");
+    dset.createAttribute<string>("note", "mass fractions");
     dset.createAttribute<vector<string>>("species names", gas->speciesNames());
 
     if(doSoot) {
@@ -1128,7 +1134,7 @@ void ignis::solveUnsteady(const double nTauRun, const int nSteps, const bool doW
                 ss << "L_" << L    << "U_" << setfill('0') << setw(3) << isave++;
             string fname = ss.str();
             writeFile(fname+".dat");
-            writeFileHdf5(fname);
+            writeFileHdf5(fname, "unsteady");
         }
     }
 
@@ -1245,7 +1251,7 @@ int ignis::rhsf(const double *vars, double *dvarsdt) {
         stringstream ss; ss << "L_" << L << "U_" << setfill('0') << setw(3) << isave++;
         string fname = ss.str();
         writeFile(fname + ".dat");
-        writeFileHdf5(fname);
+        writeFileHdf5(fname, "unsteady");
         Ttarget -= dT;
     }
 
@@ -1461,7 +1467,7 @@ int ignis::rhsf_flamelet(const double *vars, double *dvarsdt) {
         stringstream ss; ss << "X_" << chi0 << "U_" << setfill('0') << setw(3) << isave++;
         string fname = ss.str();
         writeFile(fname + ".dat");
-        writeFileHdf5(fname);
+        writeFileHdf5(fname, "unsteady");
         Ttarget -= dT;
     }
 

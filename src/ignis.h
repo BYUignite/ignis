@@ -112,8 +112,8 @@ public:
     void setFluxesUnity();
     void setFluxes();
     void setGrid(double _L);
+    void writeFileHdf5(const std::string gname, const std::string timeType);
     void writeFile(const std::string fname);
-    void writeFileHdf5(const std::string gname);
     void solveSS();
     void setChi(const double _chi0);
     void solveUnsteady(const double nTauRun, const int nsteps, const bool doWriteTime=true, 
