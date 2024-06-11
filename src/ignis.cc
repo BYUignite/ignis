@@ -4,8 +4,6 @@
 #include "solver_kinsol.h"
 #include "integrator_cvode.h"
 
-#include <highfive/highfive.hpp>
-
 #include <iostream>
 #include <algorithm>        // max
 #include <iomanip>
@@ -18,7 +16,7 @@
 
 using namespace std;
 using soot::sootModel, soot::state, soot::gasSp, soot::gasSpMapIS, soot::gasSpMapES;
-using HighFive::File, HighFive::DataSet;
+using HighFive::File, HighFive::Group, HighFive::DataSet;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -141,6 +139,11 @@ ignis::ignis(const bool _isPremixed,
     radProps = make_shared<rad_planck_mean>();  // set even if doRadiation is false, since we switch it on/off for some cases
 
     Ttarget = 0.0;
+
+    //---------- hdf5 file
+
+    fh5 = make_shared<File>("data.h5", File::Truncate);
+
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -246,39 +249,39 @@ void ignis::writeFileHdf5(const string gname) {
     vector<double>         field;
     vector<vector<double>> field2;
 
-    File f(gname, File::Truncate);
+    Group grp = fh5->createGroup(gname);
 
     field = x; field.insert(field.begin(), 0.0); field.push_back(L);
-    DataSet dset = f.createDataSet("x", field);
+    DataSet dset = grp.createDataSet("x", field);
     dset.createAttribute<string>("units", "m");
 
     if(!isPremixed) {
         field = mixf; field.insert(field.begin(), mixfLbc); field.push_back(mixfRbc);
-        dset = f.createDataSet("mixf", field);
+        dset = grp.createDataSet("mixf", field);
         dset.createAttribute<string>("units", "--");
     }
 
     field = T; field.insert(field.begin(), TLbc); field.push_back(isPremixed ? T.back() : TRbc);
-    dset = f.createDataSet("T", field);
+    dset = grp.createDataSet("T", field);
     dset.createAttribute<string>("units", "K");
 
     field = h; field.insert(field.begin(), hLbc); field.push_back(isPremixed ? h.back() : hRbc);
-    dset = f.createDataSet("h", field);
+    dset = grp.createDataSet("h", field);
     dset.createAttribute<string>("units", "J/kg");
 
     field = rho; field.insert(field.begin(), rhoLbc); field.push_back(isPremixed ? rho.back() : rhoRbc);
-    dset = f.createDataSet("rho", field);
+    dset = grp.createDataSet("rho", field);
     dset.createAttribute<string>("units", "kg/m3");
 
     field2 = y; field2.insert(field2.begin(), yLbc); field2.push_back(isPremixed ? y.back() : yRbc);
-    dset = f.createDataSet("y", field2);
+    dset = grp.createDataSet("y", field2);
     dset.createAttribute<string>("units", "-- mass fractions");
     dset.createAttribute<vector<string>>("species names", gas->speciesNames());
 
     if(doSoot) {
         vector<double> sootBC(nsoot, 0.0);
         field2 = sootvars; field2.insert(field2.begin(), sootBC); field2.push_back(isPremixed ? sootvars.back() : sootBC);
-        dset = f.createDataSet("soot", field2);
+        dset = grp.createDataSet("soot", field2);
         dset.createAttribute<string>("units", "mass moment: kg^k/m3");
     }
 }
@@ -1120,11 +1123,12 @@ void ignis::solveUnsteady(const double nTauRun, const int nSteps, const bool doW
         if(doWriteTime && dT <= 0.0) {           // write in time; (write in Temp is in rhsf)
             stringstream ss; 
             if(isFlamelet)
-                ss << "X_" << chi0 << "U_" << setfill('0') << setw(3) << isave++ << ".dat";
+                ss << "X_" << chi0 << "U_" << setfill('0') << setw(3) << isave++;
             else
-                ss << "L_" << L    << "U_" << setfill('0') << setw(3) << isave++ << ".dat";
+                ss << "L_" << L    << "U_" << setfill('0') << setw(3) << isave++;
             string fname = ss.str();
-            writeFile(fname);
+            writeFile(fname+".dat");
+            writeFileHdf5(fname);
         }
     }
 
@@ -1238,9 +1242,10 @@ int ignis::rhsf(const double *vars, double *dvarsdt) {
     double TmaxLocal = *max_element(T.begin(), T.end());
     if(TmaxLocal <= Ttarget) {
         cout << endl << isave << "  " << TmaxLocal << "  " << Ttarget << "  ";
-        stringstream ss; ss << "L_" << L << "U_" << setfill('0') << setw(3) << isave++ << ".dat";
+        stringstream ss; ss << "L_" << L << "U_" << setfill('0') << setw(3) << isave++;
         string fname = ss.str();
-        writeFile(fname);
+        writeFile(fname + ".dat");
+        writeFileHdf5(fname);
         Ttarget -= dT;
     }
 
@@ -1453,9 +1458,10 @@ int ignis::rhsf_flamelet(const double *vars, double *dvarsdt) {
     double TmaxLocal = *max_element(T.begin(), T.end());
     if(TmaxLocal <= Ttarget) {
         cout << endl << isave << "  " << TmaxLocal << "  " << Ttarget << "  ";
-        stringstream ss; ss << "X_" << chi0 << "U_" << setfill('0') << setw(3) << isave++ << ".dat";
+        stringstream ss; ss << "X_" << chi0 << "U_" << setfill('0') << setw(3) << isave++;
         string fname = ss.str();
-        writeFile(fname);
+        writeFile(fname + ".dat");
+        writeFileHdf5(fname);
         Ttarget -= dT;
     }
 

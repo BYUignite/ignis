@@ -91,14 +91,15 @@ int driver_diffusion() {
 
     flm.setIC("equilibrium");
     flm.writeFile("IC.dat");
-    flm.writeFileHdf5("IC.h5");
+    flm.writeFileHdf5("IC");
 
-    //doldb flm.doRadiation = false;
-    //doldb flm.solveUnsteady(nTauSS, nsaveSS, true);
+    flm.doRadiation = false;
+    flm.solveUnsteady(nTauSS, nsaveSS, true);
 
-    //doldb stringstream ss; ss << "L_" << L << "S_" << setfill('0') << setw(3) << 0 << ".dat";
-    //doldb string fname = ss.str();
-    //doldb flm.writeFile(fname);
+    stringstream ss; ss << "L_" << L << "S_" << setfill('0') << setw(3) << 0 << ".dat";
+    string fname = ss.str();
+    flm.writeFile(fname);
+    flm.writeFileHdf5(fname);
 
     //---------------
 

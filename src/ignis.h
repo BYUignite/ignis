@@ -9,6 +9,8 @@
 #include "linearInterp.h"
 #include "sootHeaders.h"
 
+#include <highfive/highfive.hpp>
+
 #include <vector>
 #include <memory>
 #include <string>
@@ -98,6 +100,10 @@ public:
     bool doSoot = false;                            ///< soot flag
     std::shared_ptr<soot::sootModel> SM;            ///< soot model
     std::shared_ptr<soot::state>     SMstate;       ///< holds state variables (gas and soot) for soot model
+
+    //---------------------
+
+    std::shared_ptr<HighFive::File> fh5;            ///< hdf5 file pointer
 
     ////////////////////// member functions
 
