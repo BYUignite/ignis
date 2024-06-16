@@ -26,7 +26,21 @@
 
 FROM alpine:3.19.0 as buildit
 
-RUN apk add --no-cache wget tar cmake make g++ lapack-dev vim
+RUN apk add --no-cache wget git tar cmake make g++ lapack-dev boost-dev vim hdf5-dev
+
+WORKDIR /app/
+
+############### Build highfive (c++ wrapper for hdf5)
+
+RUN git clone https://github.com/BlueBrain/HighFive.git -b v2.9.0 --depth=1 \
+&& cd HighFive \
+&& mkdir build \
+&& cd build \
+&& cmake -DHIGHFIVE_EXAMPLES=OFF -DHIGHFIVE_BUILD_DOCS=OFF .. \
+&& make -j \
+&& make install \
+&& cd ../../ \
+&& rm -r HighFive
 
 ############## Build Sundials
 
@@ -45,8 +59,6 @@ RUN wget https://github.com/LLNL/sundials/releases/download/v6.7.0/sundials-6.7.
 &&  rm -r sundials-6.7.0
 
 ############## Build Yaml
-
-RUN apk add --no-cache git
 
 RUN git clone https://github.com/jbeder/yaml-cpp.git -b 0.8.0 --depth=1 \
 &&  cd yaml-cpp \
