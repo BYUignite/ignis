@@ -85,6 +85,10 @@ int driver_diffusion_table() {
         //SMstate->setSootScales(sootScales);
     }
 
+    //--------------------- radiation
+
+    string  radType = inputFile["radType"]  ?  inputFile["radType"].as<string>() : "planckmean";
+    
     //---------------------
 
     bool doEnergyEqn = true;
@@ -94,7 +98,7 @@ int driver_diffusion_table() {
     //=====================
 
     ignis flm(isPremixed, doEnergyEqn, isFlamelet, doSoot, 
-              ngrd, L, P, csol,
+              ngrd, L, P, csol, radType,
               yLbc, yRbc, TLbc, TRbc,
               SM, SMstate);
 

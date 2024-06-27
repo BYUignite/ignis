@@ -5,9 +5,9 @@ isFlamelet:    true         # flag for flamelet (mixture fraction space)
 
 ngrd:         100 #50            # number of grid points
 nTauSS:       9.0 #5          # number of diffusive mixing timescales to run to get to steady state
-nsaveSS:      10            # number of save files when solving steady
+nsaveSS:      100            # number of save files when solving steady
 
-chi0:         100 #20            # dissipation rate multiplier (value at mixf=0)
+chi0:         1017 #20            # dissipation rate multiplier (value at mixf=0)
 
 #-----------------
 
@@ -26,3 +26,6 @@ RBC:
 
 doSoot:        true        # flag turn on/off radiation
 nsoot:         2            # number of soot variables
+
+#-----------------
+radType:       planckmean   # select radiation model between planckmean, wsgg, and rcslw

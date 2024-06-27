@@ -21,5 +21,9 @@ RBC:
 
 #-----------------
 
-doSoot:        true         # flag turn on/off radiation
+doSoot:        true         # flag turn on/off soot 
 nsoot:         2            # number of soot variables
+
+#-----------------
+radType:       planckmean   # select radiation model between planckmean, wsgg, and rcslw
+doRadiation:   true         # flag turn on/off radiation

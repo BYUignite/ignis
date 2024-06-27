@@ -22,7 +22,8 @@ using namespace soot;
 
 int driver_premixed() {
     
-    auto csol = Cantera::newSolution("gri30.yaml");
+    //auto csol = Cantera::newSolution("gri30.yaml");
+    auto csol = Cantera::newSolution("../input/c2h4det.yaml");
     auto gas  = csol->thermo();
 
     //===================== read input file
@@ -50,13 +51,13 @@ int driver_premixed() {
 
     if(doSoot) {
 
-        nucleationModel  *nucl = new soot::nucleationModel_LIN();
-        growthModel      *grow = new soot::growthModel_LIN();
+        nucleationModel  *nucl = new soot::nucleationModel_LL();
+        growthModel      *grow = new soot::growthModel_LL();
         oxidationModel   *oxid = new soot::oxidationModel_LL();
         coagulationModel *coag = new soot::coagulationModel_FM();
 
         SM = make_shared<sootModel_QMOM>(nsoot, nucl, grow, oxid, coag);
-        SM->coag->set_FM_multiplier(9.0/2.0/2.2);
+        SM->coag->set_FM_multiplier(9.0/2.2);
         SMstate = make_shared<state>(nsoot);
     }
 
@@ -80,6 +81,10 @@ int driver_premixed() {
         }
     }
 
+    //--------------------- radiation
+    bool doRadiation = inputFile["doRadiation"].as<bool>();
+    string  radType = inputFile["radType"]  ?  inputFile["radType"].as<string>() : "planckmean";
+    
     //=====================
 
     bool isFlamelet = false;
@@ -90,7 +95,7 @@ int driver_premixed() {
     double mflux = gas->density()*v;
 
     ignis flm(isPremixed, doEnergyEqn, isFlamelet, doSoot, 
-              ngrd, L, P, csol, 
+              ngrd, L, P, csol, radType, 
               yLbc, yLbc, TLbc, TLbc, 
               SM, SMstate);
 

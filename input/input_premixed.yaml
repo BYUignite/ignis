@@ -3,14 +3,19 @@ isPremixed:    true         # flag for premixed or nonpremixed
 #-----------------
 
 ngrd:          100           # number of grid points
-L:             0.04         # domain length (m)
+L:             0.03         # domain length (m)
 nTauRun:       5.0          # number of characteristic times (tau) to run
 nSteps:        1            # frequency to write file (1 writes at the end)
 
 #-----------------
 
 doSoot:        true         # flag turn on/off soot
-nsoot:         2            # number of soot variables
+nsoot:         4            # number of soot variables
+
+#-----------------
+
+radType:       planckmean   # select radiation model between planckmean, wsgg, and rcslw
+doRadiation:   true         # flag turn on/off radiation
 
 #-----------------
 

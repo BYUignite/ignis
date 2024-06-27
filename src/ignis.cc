@@ -48,6 +48,7 @@ ignis::ignis(const bool _isPremixed,
              const bool _doSoot,
              const size_t _ngrd, const double _L, double _P, 
              shared_ptr<Cantera::Solution> csol,
+             string _radType,
              const vector<double> &_yLbc, const vector<double> &_yRbc, 
              const double _TLbc, const double _TRbc,
              shared_ptr<sootModel> _SM, 
@@ -136,7 +137,52 @@ ignis::ignis(const bool _isPremixed,
 
     doRadiation = false;
 
-    radProps = make_shared<rad_planck_mean>();  // set even if doRadiation is false, since we switch it on/off for some cases
+    if(radType == "planckmean") {
+        int nGGa = 1;                    // jpb_debug
+        radProps = make_shared<rad_planck_mean>();
+    }
+    else if(radType == "wsgg") {
+        int nGGa = 4;
+        radProps = make_shared<rad_wsgg>();
+    }
+    else if(radType == "rcslw") {
+        int nGGa = 4;
+        double fvsoot = 0.0;
+        int    isp;
+        isp = gas->speciesIndex("H2O");
+        double xH2O   = yLbc[isp];
+        isp = gas->speciesIndex("CO2");
+        double xCO2   = yLbc[isp];
+        isp = gas->speciesIndex("CO");
+        double xCO    = yLbc[isp];
+        radProps = make_shared<rad_rcslw>(4, TLbc, P, fvsoot, xH2O, xCO2, xCO);
+    }
+    else
+        int nGGa = 1;
+        radProps = make_shared<rad_planck_mean>(); 
+
+
+    //----------- Get the absorption & weights for the surroundings 
+
+    vector<double> kabs_sur, awts_sur;           // surroundings kabs and awts
+    double fvsoot = 0.0;
+    double xH2O, xCO2, xCO, xCH4;
+    int isp;
+
+    isp    = gas->speciesIndex("H2O");
+    xH2O   = yLbc[isp];
+    isp    = gas->speciesIndex("CO2");
+    xCO2   = yLbc[isp];
+    isp    = gas->speciesIndex("CO");
+    xCO    = yLbc[isp];
+    isp    = gas->speciesIndex("CH4");
+    xCH4   = yLbc[isp];
+
+    radProps->get_k_a(kabs_sur, awts_sur, TLbc, P, fvsoot, xH2O, xCO2, xCO, xCH4);
+
+    
+
+    // set even if doRadiation is false, since we switch it on/off for some cases
 
     Ttarget = 0.0;
 
@@ -1054,7 +1100,8 @@ void ignis::setQrad(vector<double> &Q) {
         xCH4 = y[i][isp]/gas->molecularWeight(isp)*gas->meanMolecularWeight();
         radProps->get_k_a(kabs, awts, T[i], P, fvsoot, xH2O, xCO2, xCO, xCH4);
 
-        Q[i] = -4.0*rad::sigma*kabs[0]*(pow(T[i],4.0) - pow(TLbc,4.0));
+        for(int j=1; j<nGGa; j++)
+            Q[i] += -4.0*rad::sigma*kabs[j]*(awts[j]*pow(T[i],4.0) - kabs_sur[0]*awts_sur[0]*pow(TLbc,4.0));
     }
 }
 

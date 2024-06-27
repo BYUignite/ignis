@@ -73,7 +73,10 @@ int driver_diffusion() {
         SM->coag->set_FM_multiplier(9.0/2.0/2.2);
         SMstate = make_shared<state>(nsoot);
     }
+    //--------------------- radiation
 
+    string  radType = inputFile["radType"]  ?  inputFile["radType"].as<string>() : "planckmean";
+    bool doRadiation = inputFile["doRadiation"].as<bool>(); 
     //---------------------
 
     bool doEnergyEqn = true;
@@ -83,7 +86,7 @@ int driver_diffusion() {
     //=====================
 
     ignis flm(isPremixed, doEnergyEqn, isFlamelet, doSoot, 
-              ngrd, L, P, csol,
+              ngrd, L, P, csol, radType,
               yLbc, yRbc, TLbc, TRbc,
               SM, SMstate);
 
@@ -93,7 +96,6 @@ int driver_diffusion() {
     flm.writeFile("IC.dat");
     flm.writeFileHdf5("IC", "IC");
 
-    flm.doRadiation = false;
     flm.solveUnsteady(nTauSS, nsaveSS, true);
 
     stringstream ss; ss << "L_" << L << "S_" << setfill('0') << setw(3) << 0 << ".dat";

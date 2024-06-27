@@ -79,6 +79,10 @@ int driver_flamelet() {
         SMstate = make_shared<state>(nsoot);
     }
 
+    //--------------------- radiation
+
+    string  radType = inputFile["radType"]  ?  inputFile["radType"].as<string>() : "planckmean";
+    
     //---------------------
 
     bool doEnergyEqn = true;
@@ -88,7 +92,7 @@ int driver_flamelet() {
     //=====================
 
     ignis flm(isPremixed, doEnergyEqn, isFlamelet, doSoot, 
-              ngrd, L, P, csol,
+              ngrd, L, P, csol, radType,
               yLbc, yRbc, TLbc, TRbc,
               SM, SMstate);
 

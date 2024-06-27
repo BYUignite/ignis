@@ -6,6 +6,8 @@
 #include "cantera/transport.h"
 #include "streams.h"
 #include "rad_planck_mean.h"
+#include "rad_rcslw.h"
+#include "rad_wsgg.h"
 #include "linearInterp.h"
 #include "sootHeaders.h"
 
@@ -71,7 +73,11 @@ public:
 
     std::shared_ptr<streams> strm;                  ///< streams object (mixture fraction, etc.)
     std::shared_ptr<rad> radProps;                  ///< radiation object
+    std::string          radType;                   ///< radiation model name
     bool doRadiation;                               ///< radiation flag
+    std::vector<double> kabs_sur;                   ///< kabs for surroundings
+    std::vector<double> awts_sur;                   ///< awts for surroundings
+    int nGGa;                                       ///< number of all gases
 
     bool doLe1 = false;                             ///< true if doing unity Lewis numbers (default false)  
 
@@ -141,7 +147,7 @@ public:
 
     ignis(const bool _isPremixed, const bool _doEnergyEqn, const bool _isFlamelet, const bool _doSoot, 
           const size_t _ngrd, const double _L, const double _P,
-          std::shared_ptr<Cantera::Solution> csol,
+          std::shared_ptr<Cantera::Solution> csol, std::string _radType,
           const std::vector<double> &_yLbc, const std::vector<double> &_yRbc, 
           const double _TLbc, const double _TRbc,
           std::shared_ptr<soot::sootModel> _SM, 
