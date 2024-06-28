@@ -77,7 +77,6 @@ public:
     bool doRadiation;                               ///< radiation flag
     std::vector<double> kabs_sur;                   ///< kabs for surroundings
     std::vector<double> awts_sur;                   ///< awts for surroundings
-    int nGGa;                                       ///< number of all gases
 
     bool doLe1 = false;                             ///< true if doing unity Lewis numbers (default false)  
 

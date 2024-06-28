@@ -65,7 +65,8 @@ ignis::ignis(const bool _isPremixed,
     TLbc(_TLbc),
     TRbc(_TRbc),
     SM(_SM),
-    SMstate(_SMstate) {
+    SMstate(_SMstate),
+    radType(_radType) {
 
     //----------
 
@@ -138,15 +139,12 @@ ignis::ignis(const bool _isPremixed,
     doRadiation = false;
 
     if(radType == "planckmean") {
-        int nGGa = 1;                    // jpb_debug
         radProps = make_shared<rad_planck_mean>();
     }
     else if(radType == "wsgg") {
-        int nGGa = 4;
         radProps = make_shared<rad_wsgg>();
     }
     else if(radType == "rcslw") {
-        int nGGa = 4;
         double fvsoot = 0.0;
         int    isp;
         isp = gas->speciesIndex("H2O");
@@ -158,7 +156,6 @@ ignis::ignis(const bool _isPremixed,
         radProps = make_shared<rad_rcslw>(4, TLbc, P, fvsoot, xH2O, xCO2, xCO);
     }
     else
-        int nGGa = 1;
         radProps = make_shared<rad_planck_mean>(); 
 
 
@@ -1100,8 +1097,10 @@ void ignis::setQrad(vector<double> &Q) {
         xCH4 = y[i][isp]/gas->molecularWeight(isp)*gas->meanMolecularWeight();
         radProps->get_k_a(kabs, awts, T[i], P, fvsoot, xH2O, xCO2, xCO, xCH4);
 
-        for(int j=1; j<nGGa; j++)
-            Q[i] += -4.0*rad::sigma*kabs[j]*(awts[j]*pow(T[i],4.0) - kabs_sur[0]*awts_sur[0]*pow(TLbc,4.0));
+        int nGGa = radProps->get_nGGa();
+        for(int j=0; j<nGGa; j++)
+            Q[i] +=     -4.0*rad::sigma*kabs[j]*(awts[j]*pow(T[i],4.0)
+                                            -awts_sur[0]*pow(TLbc,4.0));
     }
 }
 
