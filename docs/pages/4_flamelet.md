@@ -30,14 +30,14 @@ This equation was implemented and verified to give the expected linear enthalpy 
 ## Soot equations
 
 The assumption of a unity Lewis number for soot is not appropriate as soot has negligible diffusion by Brownian motion. It does diffuse by thermophoresis as noted in the [diffusion flame](@ref diffusion) section. A flamelet equation allowing for soot transport by thermophoresis is given by
-$$\prtl{m_k}{t} = C\prtl{m_k}{\xi} + S_k.$$
-Here, \f$m_k=M_k/\rho\f$, where \f$M_k\f$ is the \f$k^\text{th}\f$ mass-moment. The factor \f$C\f$ can be interpreted as an advection velocity in the mixture fraction coordinate, and is given by
+$$\prtl{\haat{M}_k}{t} = C\prtl{\haat{M}_k}{\xi} + S_k.$$
+Here, \f$\haat{M}_k=M_k/\rho\f$, where \f$M_k\f$ is the \f$k^\text{th}\f$ mass-moment. The factor \f$C\f$ can be interpreted as an advection velocity in the mixture fraction coordinate, and is given by
 $$C = \frac{0.556\mu}{\rho T}\beta^2\prtl{T}{\xi} - \frac{\beta}{\rho}\prtl{\rho D\beta}{\xi}.$$
 \f$\beta\f$ is defined to be
 $$\beta\equiv\prtl{\xi}{x} = \sqrt{\frac{\chi}{2D}}.$$
 The soot gradient is computed with an upwind discretization using the local value of \f$C\f$.
 The source term \f$S_k\f$ is given by
-$$S_k = \frac{0.556 \beta m_k}{\rho}\left[\prtl{T}{\xi}\prtl{\mu\beta/T}{\xi} + \frac{\beta\mu}{T}\prtl{^2T}{\xi^2}\right] + \frac{\doot{M}_k}{\rho}.$$
+$$S_k = \frac{0.556 \beta \haat{M}_k}{\rho}\left[\prtl{T}{\xi}\prtl{\mu\beta/T}{\xi} + \frac{\beta\mu}{T}\prtl{^2T}{\xi^2}\right] + \frac{\doot{M}_k}{\rho}.$$
 
 See \cite Lignell_thesis for details and derivations of these equations.
 

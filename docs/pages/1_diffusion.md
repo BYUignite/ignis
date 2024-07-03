@@ -42,9 +42,12 @@ $$q = -k\prtl{T}{x} + \sum_kh_kj_k.$$
 [Cantera](https://cantera.org/) is used for all thermochemical and transport properties, including diffusivities, thermal conductivity, viscosity, heat capacity, density, and chemical reaction rates, using available detailed kinetic mechanisms. SI units are used for all quantities (except kmoles are used instead of moles).
 
 ### Radiation
-The radiative source term \f$Q_r\f$ is computed using an optically-thin approximation,
-$$Q_r = -4\sigma k_a(T^4-T_0^4),$$
-where \f$\sigma\f$ is the Stefan-Boltzmann constant, \f$k_a\f$ is the absorption coefficient, and \f$T_0\f$ is the temperature of the lower boundary, corresponding nominally to the ambient surrounding air. The temperature and composition dependent absorption coefficient is computed by [RadLib](https://github.com/BYUignite/RadLib.git) \cite Stephens_2022. By default, a Planck-mean assumption is used considering species H\f$_2\f$O, CO\f$_2\f$, CO, and CH\f$_4\f$. Spectral models can also be easily used, including the weighted sum of gray gases (WSSG), and the rank correlated spectral line weighted sum of gray gases (RCSLW).
+
+The radiative source term \f$Q_r\f$ is computed using an optically-thin approximation. The gas is spectral and several models are avalable, as implemented in [RadLib](https://github.com/BYUignite/RadLib.git) \cite Stephens_2022. For a spectral formulation with $n_{gg}$ gray gases, \f$Q_r\f$ is given by
+$$Q_r = -4\sigma\sum_{j=1}^{n_{gg}} k_j(a_jT^4-a_{j,0}T_0^4),$$
+where \f$\sigma\f$ is the Stefan-Boltzmann constant, \f$k_j\f$ is the absorption coefficient of the \f$j^{th}\f$ gray gas, \f$a_j\f$ is the weight factor of the \f$j^{th}\f$ gray gas, and \f$T_0\f$ is the temperature of the lower boundary, corresponding nominally to the ambient surrounding air. \f$k_j\f$ and \f$a_j\f$ are computed by RadLib, which can use the Plank-mean assumption with \f$n_{gg}=1\f$, the Weighted Sum of Gray Gases model (WSGG) with \f$n_{gg}=4\f$, or the Rank Correlated Spectral Line WSGG (RCSLW) model with arbitrary \f$n_{gg}\f$. By default, a Planck-mean assumption is used considering species H\f$_2\f$O, CO\f$_2\f$, CO, and CH\f$_4\f$.
+In that case, \f$Q_r\f$ is given by
+$$Q_r = -4\sigma k(T^4-T_0^4).$$
 
 ## Soot
 
