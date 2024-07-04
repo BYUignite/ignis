@@ -110,7 +110,7 @@ RUN git clone https://github.com/BYUignite/sootlib.git -b v1.01 --depth=1 \
 
 ############## Build ignis
 
-RUN git clone https://github.com/BYUignite/ignis.git --depth=1 \
+RUN git clone https://github.com/BYUignite/ignis.git -b softwarex --depth=1 \
 &&  cd ignis \
 &&  mkdir build \
 &&  cd build \
