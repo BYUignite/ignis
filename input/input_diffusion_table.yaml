@@ -38,10 +38,5 @@ RBC:                        # ISF flame 2, phi = 2.34
 
 #-----------------
 
-doSoot:        false        # flag turn on/off radiation
-nsoot:         2            # number of soot variables
-
-#-----------------
-
 doRadiation:   false        # flag turn on/off radiation
 radType:       planckmean   # select radiation model between planckmean, wsgg, and rcslw

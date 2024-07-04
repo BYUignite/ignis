@@ -161,7 +161,6 @@ ignis::ignis(const bool _isPremixed,
 
     //----------- Get the absorption & weights for the surroundings 
 
-    vector<double> kabs_sur, awts_sur;           // surroundings kabs and awts
     double fvsoot = 0.0;
     double xH2O, xCO2, xCO, xCH4;
     int isp;
@@ -176,8 +175,6 @@ ignis::ignis(const bool _isPremixed,
     xCH4   = yLbc[isp];
 
     radProps->get_k_a(kabs_sur, awts_sur, TLbc, P, fvsoot, xH2O, xCO2, xCO, xCH4);
-
-    
 
     // set even if doRadiation is false, since we switch it on/off for some cases
 
@@ -1099,8 +1096,8 @@ void ignis::setQrad(vector<double> &Q) {
 
         int nGGa = radProps->get_nGGa();
         for(int j=0; j<nGGa; j++)
-            Q[i] +=     -4.0*rad::sigma*kabs[j]*(awts[j]*pow(T[i],4.0)
-                                            -awts_sur[0]*pow(TLbc,4.0));
+            Q[i] +=     -4.0*rad::sigma*kabs[j]*(awts[j]    *pow(T[i],4.0) -
+                                                 awts_sur[j]*pow(TLbc,4.0));
     }
 }
 
