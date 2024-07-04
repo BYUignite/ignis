@@ -10,23 +10,23 @@ nSteps:        1            # frequency to write file (1 writes at the end)
 #-----------------
 
 doSoot:        true         # flag turn on/off soot
-nsoot:         4            # number of soot variables
+nsoot:         2            # number of soot variables
 
 #-----------------
 
+doRadiation:   false        # flag turn on/off radiation
 radType:       planckmean   # select radiation model between planckmean, wsgg, and rcslw
-doRadiation:   true         # flag turn on/off radiation
 
 #-----------------
 
 P:        101325       # system pressure (Pa)
 v:        0.0673
 LBC:                        # ISF flame 2, phi = 2.34
-    TLbc: 298
-    comp:                   # mole fractions (don't have to be normalized)
-        C2H4: 0.1408
-        O2:   0.1805
-        N2:   0.6787
+    TLbc: 298.0
+    comp:                   # mass fractions (don't have to be normalized)
+        C2H4: 0.13744523
+        O2:   0.20097047
+        N2:   0.66158430
 
 #-----------------
 

@@ -56,7 +56,7 @@ int driver_diffusion() {
 
     //--------------------- soot
 
-    bool   doSoot = inputFile["doSoot"].as<bool>();
+    bool   doSoot = inputFile["doSoot"] ? inputFile["doSoot"].as<bool>() : false;
     size_t nsoot  = doSoot ? inputFile["nsoot"].as<size_t>() : 0;
 
     shared_ptr<sootModel> SM;

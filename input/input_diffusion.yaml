@@ -1,8 +1,8 @@
 
 #-----------------
 
-ngrd:         50            # number of grid points
-L:            0.003         # domain length (m)
+ngrd:         40            # number of grid points
+L:            0.008         # domain length (m)
 nTauSS:       6.0           # number of diffusive mixing timescales to run to get to steady state
 nsaveSS:      1             # number of save files when solving steady
 
@@ -10,20 +10,18 @@ nsaveSS:      1             # number of save files when solving steady
 
 P:        101325            # system pressure (Pa)
 LBC:
-    TLbc: 300.0
-    comp:                   # mole fractions (don't have to be normalized)
+    TLbc: 291.0
+    comp:                   # mass fractions (don't have to be normalized)
         O2:   0.233
         N2:   0.767
 RBC:
-    TRbc: 300.0
-    comp:                   # mole fractions (don't have to be normalized)
-        C2H4:  1.0
+    TRbc: 294.0
+    comp:                   # mass fractions (don't have to be normalized)
+        CH4:  0.15637226
+        O2:   0.19648868
+        N2:   0.64713906
 
 #-----------------
 
-doSoot:        true         # flag turn on/off soot 
-nsoot:         2            # number of soot variables
-
-#-----------------
+doRadiation:   false        # flag turn on/off radiation
 radType:       planckmean   # select radiation model between planckmean, wsgg, and rcslw
-doRadiation:   true         # flag turn on/off radiation

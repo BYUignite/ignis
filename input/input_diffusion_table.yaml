@@ -26,12 +26,12 @@ Ls:
 P:        101325            # system pressure (Pa)
 LBC:                        # ISF flame 2, phi = 2.34
     TLbc: 291.0
-    comp:                   # mole fractions (don't have to be normalized)
+    comp:                   # mass fractions (don't have to be normalized)
         O2:   0.233
         N2:   0.767
 RBC:                        # ISF flame 2, phi = 2.34
     TRbc: 294.0
-    comp:                   # mole fractions (don't have to be normalized)
+    comp:                   # mass fractions (don't have to be normalized)
         CH4:  0.15637226
         O2:   0.19648868
         N2:   0.64713906
@@ -42,4 +42,6 @@ doSoot:        false        # flag turn on/off radiation
 nsoot:         2            # number of soot variables
 
 #-----------------
+
+doRadiation:   false        # flag turn on/off radiation
 radType:       planckmean   # select radiation model between planckmean, wsgg, and rcslw
