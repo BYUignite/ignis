@@ -1601,6 +1601,8 @@ float myErfInv2(float x){
    return(sgn*sqrtf(-tt1 + sqrtf(tt1*tt1 - tt2)));
 }
 
+// same as Peters' 1984 paper LAMINAR DIFFUSION FLAMELET MODELS IN NON-PREMIXED TURBULENT COMBUSTION
+
 void ignis::setChi(const double _chi0) {
 
     chi0 = _chi0;
