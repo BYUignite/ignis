@@ -1617,6 +1617,9 @@ void ignis::setChi(const double _chi0) {
     // }
 
     // erf
+    // chi = chi0 * exp(-2*(erfc^{-1}*(2Z))^2); Peters Prog. Energy Combust. Sci. 1984 Vol 10 pp 319-339
+    // It is equivalent to  what is coded here:
+    // chi = chi0 * exp(-2(erf^{-1}(2Z-1))^2)
     double d;
     for(size_t i=0; i<ngrd; i++) {
         d = myErfInv2(2*x[i]-1);
