@@ -21,7 +21,7 @@ using HighFive::File, HighFive::Group, HighFive::DataSet;
 ////////////////////////////////////////////////////////////////////////////////
 
 int Func_kinsol(N_Vector varsKS, N_Vector fvec, void *user_data);
-int rhsf_cvode(realtype t, N_Vector varsCV, N_Vector dvarsdtCV, void *user_data);
+int rhsf_cvode(sunrealtype t, N_Vector varsCV, N_Vector dvarsdtCV, void *user_data);
 
 ////////////////////////////////////////////////////////////////////////////////
 ///
@@ -1637,7 +1637,7 @@ void ignis::setChi(const double _chi0) {
 ///
 ////////////////////////////////////////////////////////////////////////////////
 
-int rhsf_cvode(realtype t, N_Vector varsCV, N_Vector dvarsdtCV, void *user_data) {
+int rhsf_cvode(sunrealtype t, N_Vector varsCV, N_Vector dvarsdtCV, void *user_data) {
     ignis *flm = static_cast<ignis *>(user_data);
 
     double *vars  = N_VGetArrayPointer(varsCV);

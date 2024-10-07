@@ -6,7 +6,7 @@
 #include <sunlinsol/sunlinsol_dense.h> // access to dense SUNLinearSolver
 #include <sunmatrix/sunmatrix_band.h>  // access to dense SUNMatrix
 #include <sunlinsol/sunlinsol_band.h>  // access to dense SUNLinearSolver
-#include <sundials/sundials_types.h>   // defs. of realtype, sunindextype
+#include <sundials/sundials_types.h>   // defs. of sunrealtype, sunindextype
 
 #include <vector>
 #include <iostream>
@@ -72,7 +72,7 @@ solver_kinsol(
     solver_type              = KIN_LINESEARCH;
     exact_or_modified_newton = 1;
 
-    rv = SUNContext_Create(NULL, &sun);
+    rv = SUNContext_Create(SUN_COMM_NULL, &sun);
 
     vars        = N_VNew_Serial(nvar, sun);
     scales_v    = N_VNew_Serial(nvar, sun);

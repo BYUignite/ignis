@@ -26,7 +26,7 @@ public:
     void           *cmem;          ///< cvode object
     N_Vector        vars;          ///< vector of variables being solved
     N_Vector        atol;          ///< vector atol (absolute tolerance, for each variable)
-    realtype        rtol;          ///< scalar rtol (relative tolerance)
+    sunrealtype     rtol;          ///< scalar rtol (relative tolerance)
     unsigned        nvar;          ///< number of equations being solved
     SUNMatrix       J;             ///< matrix for linear solver
     SUNLinearSolver LS;            ///< linear solver
@@ -49,7 +49,7 @@ public:
 //////////////////////////////////////////////////////////
 
 integrator_cvode(
-                 int (*Func)(realtype, N_Vector, N_Vector, void*),
+                 int (*Func)(sunrealtype, N_Vector, N_Vector, void*),
                  void *                _user_data,
                  const int             _nvar, 
                  const double          _rtol,
@@ -60,7 +60,7 @@ integrator_cvode(
                      nvar(_nvar),
                      rtol(_rtol) {
 
-    rv = SUNContext_Create(NULL, &sun);
+    rv = SUNContext_Create(SUN_COMM_NULL, &sun);
 
     vars = N_VNew_Serial(nvar, sun);
     atol = N_VNew_Serial(nvar, sun);
@@ -88,12 +88,12 @@ integrator_cvode(
 ///
 //////////////////////////////////////////////////////////
 
-int integrate(std::vector<double> &y, const realtype dt) {
+int integrate(std::vector<double> &y, const sunrealtype dt) {
 
     for(int k=0; k<nvar; ++k)
         NV_Ith_S(vars, k) = y[k];
 
-    realtype t;
+    sunrealtype t;
 
     rv = CVodeReInit(cmem, 0.0, vars);
     rv = CVode(cmem, dt, vars, &t, CV_NORMAL);
