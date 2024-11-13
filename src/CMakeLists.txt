@@ -1,3 +1,4 @@
+# Set an environment variable CANTERA_INCLUDE_PATH, e.g., /usr/local/cantera/include
 # Set an environment variable CMAKE_PREFIX_PATH with paths for find_library etc to search
 # or add: HINTS "/path/to/lib/dir" at the end of the find_library call
 # NOTE: below, target include directories and link directories has usr/local before CONDA_PREFIX.
@@ -24,6 +25,7 @@ find_library(SUNCV   sundials_cvodes)
 find_library(SUNCORE sundials_core)
 find_library(SUNNV   sundials_nvecserial)
 
+target_include_directories(ignis.x PRIVATE "$ENV{CANTERA_INCLUDE_PATH}")
 target_include_directories(ignis.x PRIVATE "/usr/local/include")
 target_include_directories(ignis.x PRIVATE "$ENV{CONDA_PREFIX}/include")
 
