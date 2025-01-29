@@ -24,7 +24,7 @@ using namespace soot;
 
 int driver_diffusion_table() {
     
-    auto csol = Cantera::newSolution("gri30.yaml");
+    auto csol = Cantera::newSolution("../input/gri30.yaml");
     auto gas  = csol->thermo();
 
     //===================== read input file
@@ -88,7 +88,8 @@ int driver_diffusion_table() {
 
     //--------------------- radiation
 
-    string  radType = inputFile["radType"]  ?  inputFile["radType"].as<string>() : "planckmean";
+    string radType = inputFile["radType"] ? inputFile["radType"].as<string>() : "planckmean";
+    bool   doLe1   = inputFile["doLe1"]   ? inputFile["doLe1"].as<bool>()     : true;
     
     //---------------------
 
@@ -103,7 +104,7 @@ int driver_diffusion_table() {
               yLbc, yRbc, TLbc, TRbc,
               SM, SMstate);
 
-    //flm.doLe1 = true;
+    flm.doLe1 = doLe1;
 
     flm.setIC("equilibrium");
     flm.storeState();
@@ -111,14 +112,15 @@ int driver_diffusion_table() {
 
     //---------------
 
-    double Tmin, Tmax;
+    double pvMin, pvMax;
 
     for(int i=0; i<Ls.size(); i++) {
         L = Ls[i];
 
         //----- do SS solution
 
-        Tmax = *max_element(flm.T.begin(), flm.T.end());
+        flm.setpv();
+        pvMax = *max_element(flm.pv.begin(), flm.pv.end());
         flm.setGrid(L); cout << "\n\nL = " << flm.L << endl;
         cout << endl << "do SS"; cout.flush();
         flm.doRadiation = false;
@@ -128,12 +130,13 @@ int driver_diffusion_table() {
 
         if(*max_element(flm.T.begin(), flm.T.end()) < 1.5*min(TLbc, TRbc)) {
             cout << endl << "Extinction for L=" << flm.L << endl;
-            Tmin = *max_element(flm.T.begin(), flm.T.end());
+            flm.setpv();
+            pvMin = *max_element(flm.pv.begin(), flm.pv.end());
             flm.setIC("stored");
             stringstream ss; ss << "L_" << L << "S_" << setfill('0') << setw(3) << 0 << ".dat";
             string fname = ss.str();
             flm.writeFile(fname);
-            flm.solveUnsteady(nTauU,  nsaveU, false, Tmin, Tmax);
+            flm.solveUnsteady(nTauU,  nsaveU, false, pvMin, pvMax);
         }
 
         else {
@@ -141,21 +144,23 @@ int driver_diffusion_table() {
             string fname = ss.str();
             flm.writeFile(fname);
 
-            Tmax = *max_element(flm.T.begin(), flm.T.end());
+            flm.setpv();
+            pvMax = *max_element(flm.pv.begin(), flm.pv.end());
             flm.storeState();
 
-            //----- do unsteady with radiation to find Tmin
+            //----- do unsteady with radiation to find pvMin
 
-            cout << endl << "do unsteady to get Tmin";
+            cout << endl << "do unsteady to get pvMin";
             flm.doRadiation = true;
             flm.solveUnsteady(nTauU,  1, false);
-            Tmin = *max_element(flm.T.begin(), flm.T.end());
+            flm.setpv();
+            pvMin = *max_element(flm.pv.begin(), flm.pv.end());
             flm.setIC("stored");
 
-            //----- do unsteady with radiation nominally evenly spaced between Tmax and Tmin
+            //----- do unsteady with radiation nominally evenly spaced between pvMax and pvMin
 
             cout << endl << "do unsteady";
-            flm.solveUnsteady(nTauU,  nsaveU, false, Tmin, Tmax);
+            flm.solveUnsteady(nTauU,  nsaveU, false, pvMin, pvMax);
             flm.setIC("stored");
         }
     }

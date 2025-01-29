@@ -46,6 +46,8 @@ public:
     std::vector<double>               Tstore;       ///< stored temperature
     std::vector<std::vector<double> > sootstore;    ///< stored soot variables
 
+    std::vector<double> pv;                         ///< progress variable
+
     std::vector<double> yLbc, yRbc;                 ///< y boundary values: left and right (as needed)
     double TLbc, TRbc;                              ///< T boundary values: left and right (as needed)
     double hLbc, hRbc;                              ///< h boundary values: left and right (as needed)
@@ -80,8 +82,8 @@ public:
 
     bool doLe1 = false;                             ///< true if doing unity Lewis numbers (default false)  
 
-    double Ttarget;                                 ///< for unsteady cases, run until this max T instead of for a given time
-    double dT;                                      ///< delta T increment for unsteady cases
+    double pvTarget;                                ///< for unsteady cases, run until this max T instead of for a given time
+    double dpv;                                     ///< delta T increment for unsteady cases
     int isave;                                      ///< file counter for save during unsteady cases
 
     std::vector<std::vector<double> > flux_y;       ///< species fluxes: [I(igrid, ksp)]    I(igrid,ksp) maps 2D onto 1D
@@ -122,7 +124,7 @@ public:
     void solveSS();
     void setChi(const double _chi0);
     void solveUnsteady(const double nTauRun, const int nsteps, const bool doWriteTime=true, 
-                       const double Tmin=0, const double Tmax=0);
+                       const double pvMin=0, const double pvMax=0);
     int  Func(const double *vars, double *F);
     int  rhsf(const double *vars, double *dvarsdt);
     int  rhsf_flamelet(const double *vars, double *dvarsdt);
@@ -141,6 +143,13 @@ public:
 
     size_t I( size_t i, size_t k) { return i*nsp  + k; }     // y[I(i,k)] in 1D --> y[i,k] in 2D
     size_t Ia(size_t i, size_t k) { return i*nvar + k; }     // for indexing combined (a for all) vars
+
+    void setpv(){
+        for (size_t i=0; i<ngrd; i++)
+            //pv[i] = T[i];
+            pv[i] = y[i][gas->speciesIndex("H2")] + y[i][gas->speciesIndex("H2O")] +
+                    y[i][gas->speciesIndex("CO")] + y[i][gas->speciesIndex("CO2")];
+    }
 
     ////////////////////// constructors 
 

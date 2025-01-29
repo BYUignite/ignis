@@ -90,6 +90,8 @@ ignis::ignis(const bool _isPremixed,
     if(doSoot) sootvars = vector<vector<double> >(ngrd, vector<double>(nsoot, 0.0));
     T.resize(ngrd, 0.0);
 
+    pv.resize(ngrd, 0.0);
+
     //---------- set grid
 
     setGrid(L);
@@ -178,7 +180,7 @@ ignis::ignis(const bool _isPremixed,
 
     // set even if doRadiation is false, since we switch it on/off for some cases
 
-    Ttarget = 0.0;
+    pvTarget = 0.0;
 
     //---------- hdf5 file
 
@@ -209,7 +211,7 @@ void ignis::setGrid(double _L) {
     }
     else {                  //--------- segmented grid
 
-        double Lfrac = 0.5;         // first Lfrac fraction of the domain length
+        double Lfrac = 0.2;         // first Lfrac fraction of the domain length
         double Gfrac = 0.5;         // gets this Gfrac fraction of the grid points
         int n1 = ngrd*Gfrac;
         double dx1 = L*Lfrac/n1;
@@ -259,6 +261,8 @@ void ignis::setGrid(double _L) {
 ////////////////////////////////////////////////////////////////////////////////
 
 void ignis::writeFileHdf5(const string gname, const string timeType) {
+
+    setpv();
 
     vector<double> mixf;
     double mixfLbc;
@@ -343,6 +347,12 @@ void ignis::writeFile(const string fname) {
 
     //-------------- compute auxiliary quantities
 
+    setpv();
+    double pvLbc = yLbc[gas->speciesIndex("H2")] + yLbc[gas->speciesIndex("H2O")] +
+                   yLbc[gas->speciesIndex("CO")] + yLbc[gas->speciesIndex("CO2")];
+    double pvRbc = yRbc[gas->speciesIndex("H2")] + yRbc[gas->speciesIndex("H2O")] +
+                   yRbc[gas->speciesIndex("CO")] + yRbc[gas->speciesIndex("CO2")];
+
     vector<double> mixf;
     double mixfLbc;
     double mixfRbc;
@@ -383,6 +393,7 @@ void ignis::writeFile(const string fname) {
     if(!isPremixed) ofile << setw(13) << "00" << j++ << "_mixf";
     ofile << setw(16) << "00" << j++ << "_T";
     ofile << setw(16) << "00" << j++ << "_h";
+    ofile << setw(15) << "00" << j++ << "_pv";
     ofile << setw(10) << "00" << j++ << "_density";
     for(int k=0; k<nsp; k++) {
         stringstream ss; ss << setfill('0') << setw(3) << j++ << "_" << gas->speciesName(k);
@@ -402,6 +413,7 @@ void ignis::writeFile(const string fname) {
     if(!isPremixed) ofile << setw(19) << mixfLbc;
     ofile << setw(19) << TLbc;
     ofile << setw(19) << hLbc;
+    ofile << setw(19) << pvLbc;
     ofile << setw(19) << rhoLbc;
     for(int k=0; k<nsp; k++)
         ofile << setw(19) << yLbc[k];
@@ -416,6 +428,7 @@ void ignis::writeFile(const string fname) {
         if(!isPremixed) ofile << setw(19) << mixf[i];
         ofile << setw(19) << T[i];
         ofile << setw(19) << h[i];
+        ofile << setw(19) << pv[i];
         ofile << setw(19) << rho[i];
         for(int k=0; k<nsp; k++)
             ofile << setw(19) << y[i][k];
@@ -444,6 +457,7 @@ void ignis::writeFile(const string fname) {
         ofile << setw(19) << mixfRbc;
         ofile << setw(19) << TRbc;
         ofile << setw(19) << hRbc;
+        ofile << setw(19) << pvRbc;
         ofile << setw(19) << rhoRbc;
         for(int k=0; k<nsp; k++)
             ofile << setw(19) << yRbc[k];
@@ -1105,19 +1119,19 @@ void ignis::setQrad(vector<double> &Q) {
 ///
 /// Solve unsteady ignis problems.
 /// Assumes y, T are initialized
-/// Two modes: write on every time step of size dt, or write on temperature steps of size dT.
-/// Default is in time --> Tmin, Tmax are zero --> dT = 0
+/// Two modes: write on every time step of size dt, or write on prog var steps of size dpv.
+/// Default is in time --> pvMin, pvMax are zero --> dpv = 0
 /// 
 /// @param nTauRun     \input number of characteristic times to solve for.
 /// @param nSteps      \input number of steps to take during the solution.
 /// @param doWriteTime \input if true (default) then write solution in time
-/// @param Tmin        \input minimum temperature (default is 0, see code) (for stepping to desired T)
-/// @param Tmax        \input maximum temperature (default is 0, see code) (for stepping to desired T)
+/// @param pvMin        \input minimum temperature (default is 0, see code) (for stepping to desired T)
+/// @param pvMax        \input maximum temperature (default is 0, see code) (for stepping to desired T)
 ///
 ////////////////////////////////////////////////////////////////////////////////
 
 void ignis::solveUnsteady(const double nTauRun, const int nSteps, const bool doWriteTime, 
-                          const double Tmin, const double Tmax) {
+                          const double pvMin, const double pvMax) {
 
     //---------- transfer variables into single array
     vector<double> vars(nvarA);
@@ -1163,13 +1177,13 @@ void ignis::solveUnsteady(const double nTauRun, const int nSteps, const bool doW
     double tend = nTauRun * tau;
 
     double dt = tend/nSteps;
-    dT = Tmax==Tmin ? 0.0 : (Tmax-(Tmin+0.1))/nSteps;
-    Ttarget = Tmax - dT;
+    dpv = pvMax==pvMin ? 0.0 : (pvMax-(pvMin+0.0001))/nSteps;
+    pvTarget = pvMax - dpv;
     isave = 1;
 
     for(int istep=1; istep<=nSteps; istep++, t+=dt) {
         integ.integrate(vars, dt);
-        if(doWriteTime && dT <= 0.0) {           // write in time; (write in Temp is in rhsf)
+        if(doWriteTime && dpv <= 0.0) {           // write in time; (write in Temp is in rhsf)
             stringstream ss; 
             if(isFlamelet)
                 ss << "X_" << chi0 << "U_" << setfill('0') << setw(3) << isave++;
@@ -1198,7 +1212,12 @@ void ignis::solveUnsteady(const double nTauRun, const int nSteps, const bool doW
         T[i] = vars[Ia(i,nvar-1)]*Tscale;      // dolh comment to remove h
     }
 
-    Ttarget = 0.0;
+//    stringstream ss; 
+//    ss << "L_" << L    << "U_F";
+//    string fname = ss.str();
+//    writeFile(fname+".dat");
+
+    pvTarget = 0.0;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1288,14 +1307,16 @@ int ignis::rhsf(const double *vars, double *dvarsdt) {
             dvarsdt[Ia(i,nvar-1)] = 0.0;
     }
     //-------------
-    double TmaxLocal = *max_element(T.begin(), T.end());
-    if(TmaxLocal <= Ttarget) {
-        cout << endl << isave << "  " << TmaxLocal << "  " << Ttarget << "  ";
+
+    setpv();
+    double pvMaxLocal = *max_element(pv.begin(), pv.end());
+    if(pvMaxLocal <= pvTarget) {
+        cout << endl << isave << "  " << pvMaxLocal << "  " << pvTarget << "  ";
         stringstream ss; ss << "L_" << L << "U_" << setfill('0') << setw(3) << isave++;
         string fname = ss.str();
         writeFile(fname + ".dat");
         writeFileHdf5(fname, "unsteady");
-        Ttarget -= dT;
+        pvTarget -= dpv;
     }
 
     //-------------
@@ -1504,14 +1525,15 @@ int ignis::rhsf_flamelet(const double *vars, double *dvarsdt) {
 
     //-------------
 
-    double TmaxLocal = *max_element(T.begin(), T.end());
-    if(TmaxLocal <= Ttarget) {
-        cout << endl << isave << "  " << TmaxLocal << "  " << Ttarget << "  ";
+    setpv();
+    double pvMaxLocal = *max_element(pv.begin(), pv.end());
+    if(pvMaxLocal <= pvTarget) {
+        cout << endl << isave << "  " << pvMaxLocal << "  " << pvTarget << "  ";
         stringstream ss; ss << "X_" << chi0 << "U_" << setfill('0') << setw(3) << isave++;
         string fname = ss.str();
         writeFile(fname + ".dat");
         writeFileHdf5(fname, "unsteady");
-        Ttarget -= dT;
+        pvTarget -= dpv;
     }
 
     //-------------
