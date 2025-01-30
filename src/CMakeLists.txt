@@ -9,6 +9,7 @@ target_sources(ignis.x PRIVATE main.cc
                                driver_premixed.cc 
                                driver_diffusion.cc 
                                driver_diffusion_table.cc 
+                               driver_flamelet_table.cc 
                                driver_flamelet.cc 
                                ignis.cc 
                                streams.cc)

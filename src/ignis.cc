@@ -119,6 +119,10 @@ ignis::ignis(const bool _isPremixed,
     hscale = max(abs(hLbc), abs(hRbc));
     Tscale = 2500;
 
+    h.resize(ngrd);
+    for(size_t i=0; i<ngrd; i++)               // initialize a linear profile between boundaries
+        h[i] = hLbc + x[i]/L*(hRbc-hLbc);
+
     //---------- set sootScales, and species map
     // Mk = integral (m^k * n(m) *dm) --> Mk ~ M0<m>^k, where <m> in an average soot size 
     // <m> = M1/M0 = rho*Ys/M0 = fv*rhos/M0
@@ -162,6 +166,7 @@ ignis::ignis(const bool _isPremixed,
 
 
     //----------- Get the absorption & weights for the surroundings 
+    // set even if doRadiation is false, since we switch it on/off for some cases
 
     double fvsoot = 0.0;
     double xH2O, xCO2, xCO, xCH4;
@@ -177,8 +182,6 @@ ignis::ignis(const bool _isPremixed,
     xCH4   = yLbc[isp];
 
     radProps->get_k_a(kabs_sur, awts_sur, TLbc, P, fvsoot, xH2O, xCO2, xCO, xCH4);
-
-    // set even if doRadiation is false, since we switch it on/off for some cases
 
     pvTarget = 0.0;
 
@@ -477,12 +480,20 @@ void ignis::writeFile(const string fname) {
 ///
 ////////////////////////////////////////////////////////////////////////////////
 
-void ignis::storeState() {
+void ignis::storeState(int onetwo) {
 
-    Pstore = P;
-    ystore = y;
-    Tstore = T;
-    sootstore = sootvars;
+    if(onetwo==1) {
+        Pstore1 = P;
+        ystore1 = y;
+        Tstore1 = T;
+        sootstore1 = sootvars;
+    }
+    else {
+        Pstore2 = P;
+        ystore2 = y;
+        Tstore2 = T;
+        sootstore2 = sootvars;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -503,10 +514,14 @@ void ignis::setIC(const std::string icType, string fname) {
         for(int i=0; i<ngrd; i++) {
             for(int k=0; k<nsp; k++)
                 y[i][k] = yLbc[k] + x[i]/L*(yRbc[k]-yLbc[k]);
-            double h = hLbc + x[i]/L*(hRbc-hLbc);
+            h[i] = hLbc + x[i]/L*(hRbc-hLbc);
             gas->setMassFractions(&y[i][0]);
-            gas->setState_HP(h,P);
-            T[i] = doEnergyEqn ? gas->temperature() : LI->interp(x[i]);
+            gas->setState_HP(h[i],P);
+            //T[i] = doEnergyEqn ? gas->temperature() : LI->interp(x[i]);
+            if(isPremixed)
+                T[i] = doEnergyEqn ? gas->temperature() : LI->interp(x[i]);
+            else
+                T[i] = gas->temperature();
         }
     }
 
@@ -518,17 +533,30 @@ void ignis::setIC(const std::string icType, string fname) {
             gas->setState_TPY(T[i], P, &y[i][0]);
             gas->equilibrate("HP");
             gas->getMassFractions(&y[i][0]);
-            T[i] = doEnergyEqn ? gas->temperature() : LI->interp(x[i]);   // redundant
+            if(isPremixed)
+                T[i] = doEnergyEqn ? gas->temperature() : LI->interp(x[i]);
+            else
+                T[i] = gas->temperature();
         }
     }
 
     //-------------------
 
-    else if (icType == "stored") {
-        P        = Pstore;
-        y        = ystore;
-        T        = Tstore;
-        sootvars = sootstore;
+    else if (icType == "stored_1") {
+        P        = Pstore1;
+        y        = ystore1;
+        T        = Tstore1;
+        h        = hstore1;
+        sootvars = sootstore1;
+    }
+    //-------------------
+
+    else if (icType == "stored_2") {
+        P        = Pstore2;
+        y        = ystore2;
+        T        = Tstore2;
+        h        = hstore2;
+        sootvars = sootstore2;
     }
 
     //-------------------
@@ -586,7 +614,7 @@ void ignis::setIC(const std::string icType, string fname) {
 
     // Soot is inialized to zero in the constructor
 
-    storeState();
+    setpv();
 
 }
 
@@ -1144,7 +1172,7 @@ void ignis::solveUnsteady(const double nTauRun, const int nSteps, const bool doW
                 vars[Ia(i,k)] = sootvars[i][k-nsp]/sootScales[k-nsp];    // dont't forget sootscales
             }
         }
-        vars[Ia(i,nvar-1)] = T[i]/Tscale;      // dolh comment to remove h
+        if(doEnergyEqn) vars[Ia(i,nvar-1)] = T[i]/Tscale;      // dolh comment to remove h
     }
     
     //---------- setup solver
@@ -1183,10 +1211,10 @@ void ignis::solveUnsteady(const double nTauRun, const int nSteps, const bool doW
 
     for(int istep=1; istep<=nSteps; istep++, t+=dt) {
         integ.integrate(vars, dt);
-        if(doWriteTime && dpv <= 0.0) {           // write in time; (write in Temp is in rhsf)
+        if(doWriteTime && dpv <= 0.0 && nSteps > 1) {           // write in time; (write in Temp is in rhsf)
             stringstream ss; 
             if(isFlamelet)
-                ss << "X_" << chi0 << "U_" << setfill('0') << setw(3) << isave++;
+                ss << "X_" << chi0 << "_hl_" << hl << "_U_" << setfill('0') << setw(3) << isave++;
             else
                 ss << "L_" << L    << "U_" << setfill('0') << setw(3) << isave++;
             string fname = ss.str();
@@ -1209,7 +1237,13 @@ void ignis::solveUnsteady(const double nTauRun, const int nSteps, const bool doW
                 }
             }
         }
-        T[i] = vars[Ia(i,nvar-1)]*Tscale;      // dolh comment to remove h
+        if(doEnergyEqn)
+            T[i] = vars[Ia(i,nvar-1)]*Tscale;      // dolh comment to remove h
+        else {
+            gas->setMassFractions(&y[i][0]);
+            gas->setState_HP(h[i], P);
+            T[i] = gas->temperature();
+        }
     }
 
 //    stringstream ss; 
@@ -1218,6 +1252,7 @@ void ignis::solveUnsteady(const double nTauRun, const int nSteps, const bool doW
 //    writeFile(fname+".dat");
 
     pvTarget = 0.0;
+    setpv();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1310,7 +1345,7 @@ int ignis::rhsf(const double *vars, double *dvarsdt) {
 
     setpv();
     double pvMaxLocal = *max_element(pv.begin(), pv.end());
-    if(pvMaxLocal <= pvTarget) {
+    if(pvMaxLocal <= pvTarget-1E-4) {
         cout << endl << isave << "  " << pvMaxLocal << "  " << pvTarget << "  ";
         stringstream ss; ss << "L_" << L << "U_" << setfill('0') << setw(3) << isave++;
         string fname = ss.str();
@@ -1346,11 +1381,13 @@ int ignis::rhsf_flamelet(const double *vars, double *dvarsdt) {
     }
 
     //------ uncomment to solve for h instead (1 of 2), but only if doRadiation is false
-    // for(size_t i=0; i<ngrd; i++) {
-    //     gas->setMassFractions(&y[i][0]);
-    //     gas->setState_HP(hLbc*(1.0-x[i]) + hRbc*x[i], P);
-    //     T[i] = gas->temperature();
-    // }
+    if(!doEnergyEqn) {
+        for(size_t i=0; i<ngrd; i++) {
+            gas->setMassFractions(&y[i][0]);
+            gas->setState_HP(h[i], P);
+            T[i] = gas->temperature();
+        }
+    }
 
     //------------ set variables
 
@@ -1419,37 +1456,41 @@ int ignis::rhsf_flamelet(const double *vars, double *dvarsdt) {
     vector<double> dTdz(ngrd);
     setDerivative(TLbc, TRbc, T, dTdz);
 
-    vector<double> dcpdz(ngrd);
-    setDerivative(cpLbc, cpRbc, cp, dcpdz);
+    if(doEnergyEqn) {
 
-    vector<double> dydzdhdzSum(ngrd, 0.0);    //todo: fill this in
-    vector<double> dykdz(ngrd);
-    vector<double> dhkdz(ngrd);
-    vector<double> hh(ngrd);                            // intermediate transfer array
-    for(size_t k=0; k<nsp; k++) {
-        for(size_t i=0; i<ngrd; i++) {
-            yy[i] = y[i][k];
-            hh[i] = hsp[i][k];
+        vector<double> dcpdz(ngrd);
+        setDerivative(cpLbc, cpRbc, cp, dcpdz);
+
+        vector<double> dydzdhdzSum(ngrd, 0.0);    //todo: fill this in
+        vector<double> dykdz(ngrd);
+        vector<double> dhkdz(ngrd);
+        vector<double> hh(ngrd);                            // intermediate transfer array
+        for(size_t k=0; k<nsp; k++) {
+            for(size_t i=0; i<ngrd; i++) {
+                yy[i] = y[i][k];
+                hh[i] = hsp[i][k];
+            }
+            setDerivative(yLbc[k],   yRbc[k],   yy, dykdz);
+            setDerivative(hspLbc[k], hspRbc[k], hh, dhkdz);
+            for(size_t i=0; i<ngrd; i++)
+                dydzdhdzSum[i] += dykdz[i]*dhkdz[i];
         }
-        setDerivative(yLbc[k],   yRbc[k],   yy, dykdz);
-        setDerivative(hspLbc[k], hspRbc[k], hh, dhkdz);
+
+        vector<double> Q(ngrd);
+        if(doRadiation) setQrad(Q);
+
+        for(size_t i=0; i<ngrd; i++) {
+            dvarsdt[Ia(i,nvar-1)] = -hsprrSum[i]/(cp[i]*rho[i]) + 0.5*chi[i]*
+                (d2Tdz2[i] + (dTdz[i]*dcpdz[i] + dydzdhdzSum[i])/cp[i]);
+            if(doRadiation) dvarsdt[Ia(i,nvar-1)] += Q[i]/(rho[i]*cp[i]);
+            dvarsdt[Ia(i,nvar-1)] /= Tscale;
+        }
+    }
+    else {
         for(size_t i=0; i<ngrd; i++)
-            dydzdhdzSum[i] += dykdz[i]*dhkdz[i];
+            dvarsdt[Ia(i,nvar-1)] = 0.0;
+
     }
-
-    vector<double> Q(ngrd);
-    if(doRadiation) setQrad(Q);
-
-    for(size_t i=0; i<ngrd; i++) {
-        dvarsdt[Ia(i,nvar-1)] = -hsprrSum[i]/(cp[i]*rho[i]) + 0.5*chi[i]*
-                                (d2Tdz2[i] + (dTdz[i]*dcpdz[i] + dydzdhdzSum[i])/cp[i]);
-        if(doRadiation) dvarsdt[Ia(i,nvar-1)] += Q[i]/(rho[i]*cp[i]);
-        dvarsdt[Ia(i,nvar-1)] /= Tscale;
-    }
-
-    //------ uncomment to solve for h instead (2 of 2), but only if doRadiation is false
-    // for(size_t i=0; i<ngrd; i++)
-    //     dvarsdt[Ia(i,nvar-1)] = 0.0;
 
     //---------- soot
 
@@ -1521,15 +1562,22 @@ int ignis::rhsf_flamelet(const double *vars, double *dvarsdt) {
         }
     }
 
-
-
     //-------------
 
+    if(*min_element(T.begin(), T.end()) < TLbc-5.0) {
+        for(size_t i=0; i<nvarA; i++)
+            dvarsdt[i] = 0.0;
+    }
+
+    if(pvMaxForFlmltExtHl < 0 && *min_element(T.begin(), T.end()) < TLbc) {
+        pvMaxForFlmltExtHl = *max_element(pv.begin(), pv.end());
+    }
+
     setpv();
-    double pvMaxLocal = *max_element(pv.begin(), pv.end());
-    if(pvMaxLocal <= pvTarget) {
-        cout << endl << isave << "  " << pvMaxLocal << "  " << pvTarget << "  ";
-        stringstream ss; ss << "X_" << chi0 << "U_" << setfill('0') << setw(3) << isave++;
+    double pvMaxLocal = *max_element(pv.begin(), pv.end()) * 1.05;
+    if(pvMaxLocal <= pvTarget-1E-4) {
+        cout << endl << "\t" << isave << "  " << pvMaxLocal << "  " << pvTarget << "  ";
+        stringstream ss; ss << "X_" << chi0 << "_hl_" << hl << "_U_" << setfill('0') << setw(3) << isave++;
         string fname = ss.str();
         writeFile(fname + ".dat");
         writeFileHdf5(fname, "unsteady");
@@ -1539,6 +1587,21 @@ int ignis::rhsf_flamelet(const double *vars, double *dvarsdt) {
     //-------------
 
     return 0;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+///
+/// Set progress variable profile
+///
+////////////////////////////////////////////////////////////////////////////////
+
+void ignis::setpv() {
+    for (size_t i=0; i<ngrd; i++) {
+        //pv[i] = T[i];
+        pv[i] = y[i][gas->speciesIndex("H2")] + y[i][gas->speciesIndex("H2O")] +
+            y[i][gas->speciesIndex("CO")] + y[i][gas->speciesIndex("CO2")];
+        if(pv[i] < 0) pv[i] = 0.0;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1603,6 +1666,42 @@ void ignis::setDerivative2(const double vL, const double vR,
 
 ////////////////////////////////////////////////////////////////////////////////
 ///
+/// Set sensible enthalpy profile. Intended for flamelets
+/// Assumes current h and y profiles are adiabatic solution
+///
+////////////////////////////////////////////////////////////////////////////////
+
+void ignis::set_hsens() {
+
+    hsens.resize(ngrd);
+    for(size_t i=0; i<ngrd; i++) {
+        gas->setState_TPY(TLbc, P, &y[i][0]);
+        hsens[i] = h[i] - gas->enthalpy_mass();
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+///
+/// Set enthalpy given hsens and heat loss parameter
+/// @param hl \input heat loss parameter, as fraction of sensible energy
+/// hl = (ha - h) / hsens --> h = ha - hl*hsens
+/// hl is often denoted gamma.
+///
+////////////////////////////////////////////////////////////////////////////////
+
+void ignis::set_h(double _hl) {
+
+    hl = _hl;
+    h.resize(ngrd); 
+    double ha;
+    for(size_t i=0; i<ngrd; i++) {
+        ha = hLbc + x[i]/L*(hRbc-hLbc);
+        h[i] = ha - (hl == 0.0 ? 0.0 : hl*hsens[i]);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+///
 /// Set scalar dissipation rate profile
 /// @param _chi0 \input scalar dissipation rate multiplier
 ///
@@ -1645,7 +1744,7 @@ void ignis::setChi(const double _chi0) {
     double d;
     for(size_t i=0; i<ngrd; i++) {
         d = myErfInv2(2*x[i]-1);
-        chi[i] = chi0*exp(-2.0*d*d);
+        chi[i] = doUnifChi ? chi0 : chi0*exp(-2.0*d*d);
     }
 }
 

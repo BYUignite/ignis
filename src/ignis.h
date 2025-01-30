@@ -39,14 +39,24 @@ public:
     double                            P;            ///< system pressure, uniform (Pa)
     std::vector<std::vector<double> > y;            ///< mass fractions: y[igrid][isp] 
     std::vector<double>               T;            ///< temperature (K)
+    std::vector<double>               h;            ///< enthalpy (J/kg)
     std::vector<std::vector<double> > sootvars;     ///< soot moments or sections; sootvars[igrid][isoot]
 
-    double                            Pstore;       ///< stored system pressure (for initializing from stored state)
-    std::vector<std::vector<double> > ystore;       ///< stored mass fractions
-    std::vector<double>               Tstore;       ///< stored temperature
-    std::vector<std::vector<double> > sootstore;    ///< stored soot variables
+    double                            Pstore1;      ///< stored system pressure (for initializing from stored state)
+    std::vector<std::vector<double> > ystore1;      ///< stored mass fractions
+    std::vector<double>               Tstore1;      ///< stored temperature
+    std::vector<double>               hstore1;      ///< stored enthalpy
+    std::vector<std::vector<double> > sootstore1;   ///< stored soot variables
+
+    double                            Pstore2;      ///< stored system pressure (for initializing from stored state)
+    std::vector<std::vector<double> > ystore2;      ///< stored mass fractions
+    std::vector<double>               Tstore2;      ///< stored temperature
+    std::vector<double>               hstore2;      ///< stored enthalpy
+    std::vector<std::vector<double> > sootstore2;   ///< stored soot variables
 
     std::vector<double> pv;                         ///< progress variable
+    std::vector<double> hsens;                      ///< sensible enthalpy
+    double              hl;                         ///< heat loss parameter (fraction of hsens)
 
     std::vector<double> yLbc, yRbc;                 ///< y boundary values: left and right (as needed)
     double TLbc, TRbc;                              ///< T boundary values: left and right (as needed)
@@ -55,7 +65,7 @@ public:
     std::vector<double> hspLbc;                     ///< species enthalpies on left boundary
     std::vector<double> hspRbc;                     ///< species enthalpies on right boundary
 
-    double              L;                          ///< domain size (m)
+    double              L=1.0;                      ///< domain size (m)
     std::vector<double> x;                          ///< grid position values (m)
     std::vector<double> dx;                         ///< grid spacing (m), nonuniform is fine
     std::vector<double> fl;                         ///< fractions for interpolation
@@ -85,6 +95,7 @@ public:
     double pvTarget;                                ///< for unsteady cases, run until this max T instead of for a given time
     double dpv;                                     ///< delta T increment for unsteady cases
     int isave;                                      ///< file counter for save during unsteady cases
+    double pvMaxForFlmltExtHl=-1;                   ///< during ext, flmlt with HL will have Tmin < TBC --> find pvMax for this, for use in driver
 
     std::vector<std::vector<double> > flux_y;       ///< species fluxes: [I(igrid, ksp)]    I(igrid,ksp) maps 2D onto 1D
     std::vector<std::vector<double> > flux_soot;    ///< species fluxes: [I(igrid, ksoot)]
@@ -92,12 +103,13 @@ public:
 
     bool isFlamelet = false;                        ///< true for laminar flamelet (mixture fraction coordinate)
     std::vector<double> chi;                        ///< dissipation rate profile
-    double chi0;
+    double chi0;                                    ///< chi at mixture fraction = 0.5
+    bool doUnifChi = false;                         ///< true for chi(f) = chi0 instead of chi(f)=ch0*func(chi)
 
     bool   isPremixed = false;                      ///< true of the case is a premixed flame, (only left boundary condition, constant mass flux through domain)
     double mflux = 0.0;                             ///< premixed flame mass flux (kg/m2*s)
 
-    bool doEnergyEqn = true;                        ///< for premixed flames: can solve energy equation or set T profile
+    bool doEnergyEqn = true;                        ///< for premixed flames: can solve energy equation or set T profile; for diffusion/flamelets, set h profile
     std::shared_ptr<linearInterp> LI;               ///< interpolator for specified temperature profiles
     std::vector<double> Tprof_h;                    ///< temperature profile position (h is height above burner (m))
     std::vector<double> Tprof_T;                    ///< temperature profile T values
@@ -115,7 +127,7 @@ public:
     ////////////////////// member functions
 
     void setIC(const std::string icType, const std::string fname="");
-    void storeState();
+    void storeState(int onetwo=1);
     void setFluxesUnity();
     void setFluxes();
     void setGrid(double _L);
@@ -134,6 +146,8 @@ public:
         Tprof_T = _Tprof_T;
         LI = std::make_shared<linearInterp>(Tprof_h, Tprof_T);
     }
+    void set_hsens();
+    void set_h(double hl);
     void setDerivative2(const double vL, const double vR, 
                         const std::vector<double> &v, 
                         std::vector<double> &d2vdx2);
@@ -144,12 +158,7 @@ public:
     size_t I( size_t i, size_t k) { return i*nsp  + k; }     // y[I(i,k)] in 1D --> y[i,k] in 2D
     size_t Ia(size_t i, size_t k) { return i*nvar + k; }     // for indexing combined (a for all) vars
 
-    void setpv(){
-        for (size_t i=0; i<ngrd; i++)
-            //pv[i] = T[i];
-            pv[i] = y[i][gas->speciesIndex("H2")] + y[i][gas->speciesIndex("H2O")] +
-                    y[i][gas->speciesIndex("CO")] + y[i][gas->speciesIndex("CO2")];
-    }
+    void setpv();
 
     ////////////////////// constructors 
 

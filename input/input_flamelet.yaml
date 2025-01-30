@@ -1,30 +1,28 @@
 
-isFlamelet:    true         # flag for flamelet (mixture fraction space)
-
-#-----------------
-
 ngrd:         100 #50            # number of grid points
 nTauSS:       9.0 #5          # number of diffusive mixing timescales to run to get to steady state
 nsaveSS:      1              # number of save files when solving steady
 
-chi0:         1000 #20            # dissipation rate multiplier (value at mixf=0)
+chi0:         100 #20            # dissipation rate multiplier (value at mixf=0)
+doUnifChi:    true                # set chi profile to chi0, else chi0*func(mixf)
+doEnergyEqn:  false
 
 #-----------------
 
 P:        101325            # system pressure (Pa)
 LBC:
-    TLbc: 298.15
+    TLbc: 300.0 
     comp:                   # mass fractions (don't have to be normalized)
         O2:   0.233
         N2:   0.767
 RBC:
-    TRbc: 298.15
+    TRbc: 300.0 
     comp:                   # mass fractions (don't have to be normalized)
-        C2H4:  1.0
+      CH4:   1.0
 
 #-----------------
 
-doSoot:        true        # flag turn on/off radiation
+doSoot:        false       # flag turn on/off radiation
 nsoot:         2            # number of soot variables
 
 #-----------------

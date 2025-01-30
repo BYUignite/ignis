@@ -21,7 +21,8 @@ using namespace soot;
 int driver_flamelet() {
     
     // auto csol = Cantera::newSolution("gri30.yaml");
-    auto csol = Cantera::newSolution("../input/c2h4det.yaml");
+    //auto csol = Cantera::newSolution("../input/c2h4det.yaml");
+    auto csol = Cantera::newSolution("../input/LUsk17.yaml");
     auto gas  = csol->thermo();
 
     //===================== read input file
@@ -30,17 +31,17 @@ int driver_flamelet() {
 
     //---------------------
 
-    bool isFlamelet = inputFile["isFlamelet"].as<bool>();
+    bool isFlamelet  = true;
+    bool isPremixed  = false;
+    bool doEnergyEqn = inputFile["doEnergyEqn"].as<bool>();
+    bool doUnifChi   = inputFile["doUnifChi"].as<bool>();
 
+    double L       = 1.0;       // mixture fraction ranges from 0 to 1
     size_t ngrd    = inputFile["ngrd"].as<size_t>();
     double nTauSS  = inputFile["nTauSS"].as<double>();
     int    nsaveSS = inputFile["nsaveSS"].as<int>();
 
     double chi0    = inputFile["chi0"].as<double>();
-
-    vector<double> Ls;
-    for(size_t i=0; i<inputFile["Ls"].size(); i++)
-        Ls.push_back(inputFile["Ls"][i].as<double>());
 
     //--------------------- gas streams
 
@@ -85,9 +86,6 @@ int driver_flamelet() {
     
     //---------------------
 
-    bool doEnergyEqn = true;
-    bool isPremixed  = false;
-    double L = 1.0;
 
     //=====================
 
@@ -96,7 +94,7 @@ int driver_flamelet() {
               yLbc, yRbc, TLbc, TRbc,
               SM, SMstate);
 
-    //flm.doLe1 = true;
+    flm.doUnifChi = doUnifChi;
     flm.setChi(chi0);
 
     flm.setIC("equilibrium");
