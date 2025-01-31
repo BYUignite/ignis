@@ -152,7 +152,9 @@ int driver_flamelet_table() {
                     flm.solveUnsteady(nTauU,  nsaveU_, false, pvMin, pvMax);
                     ichiExt[ihl] = ichi;
                     flm.pvMaxForFlmltExtHl = -1;      // reset value
-                    break;
+
+                    flm.setIC("stored_2");
+                    //break;
                 }
                 else {
                     stringstream ss; ss << "X_" << chiList[ichi] << "_hl_" << hlList[ihl] << ".dat";

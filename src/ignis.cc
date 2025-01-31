@@ -1564,9 +1564,9 @@ int ignis::rhsf_flamelet(const double *vars, double *dvarsdt) {
 
     //-------------
 
-    if(*min_element(T.begin(), T.end()) < TLbc-5.0) {
+    if(*min_element(T.begin(), T.end()) < TLbc-1.0) {
         for(size_t i=0; i<nvarA; i++)
-            dvarsdt[i] = 0.0;
+            dvarsdt[i] *= 1E-6;
     }
 
     if(pvMaxForFlmltExtHl < 0 && *min_element(T.begin(), T.end()) < TLbc) {
@@ -1574,7 +1574,7 @@ int ignis::rhsf_flamelet(const double *vars, double *dvarsdt) {
     }
 
     setpv();
-    double pvMaxLocal = *max_element(pv.begin(), pv.end()) * 1.05;
+    double pvMaxLocal = *max_element(pv.begin(), pv.end()) * 1.00;
     if(pvMaxLocal <= pvTarget-1E-4) {
         cout << endl << "\t" << isave << "  " << pvMaxLocal << "  " << pvTarget << "  ";
         stringstream ss; ss << "X_" << chi0 << "_hl_" << hl << "_U_" << setfill('0') << setw(3) << isave++;
