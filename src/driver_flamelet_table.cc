@@ -4,6 +4,7 @@
 #include "sootHeaders.h"
 
 #include <iostream>
+#include <fstream>
 #include <sstream>
 #include <string>
 #include <iomanip>
@@ -125,7 +126,16 @@ int driver_flamelet_table() {
             stringstream ss; ss << "X_" << chiList[ichi] << "_hl_0.dat";
             string fname = ss.str();
             flm.writeFile(fname);
-            flm.set_hsens();
+            if(ichi==0) {
+                flm.set_hsens();
+                ofstream ofile("hsens.dat");
+                ofile << "# mixf, hsens (J/kg)";
+                ofile << endl << 0.0 << "  " << flm.hLbc;
+                for(int ii=0; ii<ngrd; ii++)
+                    ofile << endl << flm.x[ii] << "  " << flm.hsens[ii];
+                ofile << endl << 1.0 << "  " << flm.hRbc;
+                ofile.close();
+            }
             flm.storeState(1);
 
             //=========================

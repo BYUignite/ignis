@@ -60,7 +60,7 @@ integrator_cvode(
                      nvar(_nvar),
                      rtol(_rtol) {
 
-    rv = SUNContext_Create(SUN_COMM_NULL, &sun);
+    rv = SUNContext_Create(0, &sun);
 
     vars = N_VNew_Serial(nvar, sun);
     atol = N_VNew_Serial(nvar, sun);

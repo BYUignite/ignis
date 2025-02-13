@@ -72,7 +72,7 @@ solver_kinsol(
     solver_type              = KIN_LINESEARCH;
     exact_or_modified_newton = 1;
 
-    rv = SUNContext_Create(SUN_COMM_NULL, &sun);
+    rv = SUNContext_Create(0, &sun);
 
     vars        = N_VNew_Serial(nvar, sun);
     scales_v    = N_VNew_Serial(nvar, sun);
