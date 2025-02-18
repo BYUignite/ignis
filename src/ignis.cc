@@ -379,6 +379,8 @@ void ignis::writeFile(const string fname) {
     gas->setState_TPY(TRbc, P, &yRbc[0]);
     double rhoRbc = gas->density();
 
+    vector<double> hr = get_hr();
+
     //-------------- 
 
     ofstream ofile(fname.c_str());
@@ -398,6 +400,7 @@ void ignis::writeFile(const string fname) {
     ofile << setw(16) << "00" << j++ << "_h";
     ofile << setw(15) << "00" << j++ << "_pv";
     ofile << setw(10) << "00" << j++ << "_density";
+    ofile << setw(10) << "00" << j++ << "_hr";
     for(int k=0; k<nsp; k++) {
         stringstream ss; ss << setfill('0') << setw(3) << j++ << "_" << gas->speciesName(k);
         ofile << setw(19) << ss.str();
@@ -418,6 +421,7 @@ void ignis::writeFile(const string fname) {
     ofile << setw(19) << hLbc;
     ofile << setw(19) << pvLbc;
     ofile << setw(19) << rhoLbc;
+    ofile << setw(19) << 0.0;                // heat release
     for(int k=0; k<nsp; k++)
         ofile << setw(19) << yLbc[k];
     if(doSoot) {
@@ -433,6 +437,7 @@ void ignis::writeFile(const string fname) {
         ofile << setw(19) << h[i];
         ofile << setw(19) << pv[i];
         ofile << setw(19) << rho[i];
+        ofile << setw(19) << hr[i];
         for(int k=0; k<nsp; k++)
             ofile << setw(19) << y[i][k];
         if(doSoot) { 
@@ -447,6 +452,7 @@ void ignis::writeFile(const string fname) {
         ofile << setw(19) << T.back();
         ofile << setw(19) << h.back();
         ofile << setw(19) << rho.back();
+        ofile << setw(19) << hr.back();
         for(int k=0; k<nsp; k++)
             ofile << setw(19) << y.back()[k];
         if(doSoot) {
@@ -462,6 +468,7 @@ void ignis::writeFile(const string fname) {
         ofile << setw(19) << hRbc;
         ofile << setw(19) << pvRbc;
         ofile << setw(19) << rhoRbc;
+        ofile << setw(19) << 0.0;            // heat release
         for(int k=0; k<nsp; k++)
             ofile << setw(19) << yRbc[k];
         if(doSoot) {
@@ -1722,6 +1729,31 @@ void ignis::set_T() {
         gas->setState_HP(h[i], P);
         T[i] = gas->temperature();
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+///
+/// Set heat release field given current enthalpy and species fields
+///
+////////////////////////////////////////////////////////////////////////////////
+
+vector<double> ignis::get_hr() {
+
+    vector<double> hr(ngrd, 0.0);
+    vector<double> rr(nsp);
+    vector<double> hsp(nsp);
+
+    for(int i=0; i<ngrd; i++) {
+        gas->setMassFractions(&y[i][0]);
+        gas->setState_HP(h[i], P);
+
+        kin->getNetProductionRates(&rr[0]);          // kmol/m3*s
+        gas->getEnthalpy_RT(&hsp[0]);
+
+        for(size_t k=0; k<nsp; k++)
+            hr[i] -= hsp[k]*Cantera::GasConstant*gas->temperature()*rr[k];
+    }
+    return hr;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

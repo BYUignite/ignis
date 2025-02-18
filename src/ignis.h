@@ -159,6 +159,8 @@ public:
     size_t I( size_t i, size_t k) { return i*nsp  + k; }     // y[I(i,k)] in 1D --> y[i,k] in 2D
     size_t Ia(size_t i, size_t k) { return i*nvar + k; }     // for indexing combined (a for all) vars
 
+    std::vector<double> get_hr();                            // get heat release rate (J/m3*s)
+
     void setpv();
 
     ////////////////////// constructors 
