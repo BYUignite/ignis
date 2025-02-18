@@ -148,6 +148,7 @@ public:
     }
     void set_hsens();
     void set_h(double hl);
+    void set_T();                                            // set T given h and y fields
     void setDerivative2(const double vL, const double vR, 
                         const std::vector<double> &v, 
                         std::vector<double> &d2vdx2);

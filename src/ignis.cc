@@ -542,6 +542,16 @@ void ignis::setIC(const std::string icType, string fname) {
 
     //-------------------
 
+    else if (icType == "PCC") {
+        setIC("linear");
+        for(int i=0; i<ngrd; i++) {
+            double f = strm->getMixtureFraction(&y[i][0]);
+            strm->getProdOfCompleteComb(f, y[i], h[i], T[i]);
+        }
+    }
+
+    //-------------------
+
     else if (icType == "stored_1") {
         P        = Pstore1;
         y        = ystore1;
@@ -1697,6 +1707,20 @@ void ignis::set_h(double _hl) {
     for(size_t i=0; i<ngrd; i++) {
         ha = hLbc + x[i]/L*(hRbc-hLbc);
         h[i] = ha - (hl == 0.0 ? 0.0 : hl*hsens[i]);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+///
+/// Set T field given h and y fields
+///
+////////////////////////////////////////////////////////////////////////////////
+
+void ignis::set_T() {
+    for(int i=0; i<ngrd; i++) {
+        gas->setMassFractions(&y[i][0]);
+        gas->setState_HP(h[i], P);
+        T[i] = gas->temperature();
     }
 }
 

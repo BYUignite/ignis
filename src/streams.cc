@@ -135,98 +135,41 @@ void streams::getEquilibrium_TP(const double mixf, double Teq,
 void streams::getProdOfCompleteComb(const double mixf, vector<double> &ypcc,
                                     double &hpcc, double &Tpcc) {
 
-    //---------- Compute the mixing mass fractions and enthalpy
+    //---------- Compute the mixing mass fractions
 
-    ypcc.resize(nspc);
-    double d1 = 1.0-mixf;
-    for(int k=0; k<nspc; k++) {
-        ypcc[k] = y1[k]*mixf + y0[k]*d1;
-    }
-    hpcc = h1*mixf + h0*d1;
+    vector<double> yst(nspc, 0.0);
+    for(int k=0; k<nspc; k++)
+        yst[k] = y0[k]*(1.0-mixfStoic) + y1[k]*mixfStoic;       // holds unburnt mixing of streams
 
     //--------- Set gas and element indicicies
 
-    int iC = gas->elementIndex("C");
-    int iH = gas->elementIndex("H");
-    int iN = gas->elementIndex("N");
-    int iCO2 = gas->speciesIndex("CO2");
-    int iH2O = gas->speciesIndex("H2O");
-    int iN2  = gas->speciesIndex("N2");
-    int iO2  = gas->speciesIndex("O2");
+    gas->setMassFractions(&yst[0]);
 
-    //---------- Set ypcc as the mixing mole fractions: Take a basis of one mole:
-    // now we are working in moles
-    // elemM are moles of each element
-    // when stoic:
-    // CxHyNz   + (x+y/4)O2  ==>  (z/2)N2 + (x)CO2 + (y/2)H2O
-    // otherwise:
-    // CxHyNz   + (beta)O2   ==>  (z/2)N2 + (x)CO2 + (y/2)H2O
-    // Note this allows fuels with nitrogen and oxygen
+    double xC = gas->elementalMoleFraction(gas->elementIndex("C"));
+    double xH = gas->elementalMoleFraction(gas->elementIndex("H"));
+    double xO = gas->elementalMoleFraction(gas->elementIndex("O"));
+    double xN = gas->elementalMoleFraction(gas->elementIndex("N"));
 
-    gas->setMassFractions( &ypcc[0] );
-    gas->getMoleFractions( &ypcc[0] );
+    vector<double> xst(nspc, 0.0);
+    xst[gas->speciesIndex("CO2")] = xC;
+    xst[gas->speciesIndex("H2O")] = xH/2.0;
+    xst[gas->speciesIndex("N2")]  = xN/2.0;
 
-    double nOnotFromO2;
-    double nHnotFromH2O;
-    double nCnotFromCO2;
-    vector<double> elemM = getElementMoles( &ypcc[0], nOnotFromO2,
-            nHnotFromH2O, nCnotFromCO2 );
+    gas->setMoleFractions(&xst[0]);
+    gas->getMassFractions(&yst[0]);                             // holds products of complete combustion
 
-    double x    = elemM[iC];
-    double y    = elemM[iH];
-    double z    = elemM[iN];
-    double beta = elemM[gas->elementIndex("O")] * 0.5;        // moles of O as O2
-
-    //--------------------------------------------------------------------------
-
-    if(mixf < mixfStoic) {                        // lean: burn all fuel, leftover O2
-
-        for(int k=0; k<nspc; k++)
-            ypcc[k] = 0.0;
-
-        if(iCO2 > 0)                              // CO2 is not in the H2 mechs
-            ypcc[iCO2] = x;
-        ypcc[iH2O] = y*0.5;
-        ypcc[iN2]  = z*0.5;
-        ypcc[iO2]  = beta - (x+y/4.0);
-
-    }
-    else{                                         // rich: burn all O2, leftover fuel
-
-        //double eta = beta/(x+y/4.0); // extent of reaction
-        double eta = (beta-nOnotFromO2/2)/(x+y/4-nOnotFromO2/2); // extent of reaction
-        if(eta > 1.0)
-            cout << endl << "eta > 1.0" << endl;
-        d1 = 1.0-eta;                            // fraction of fuel unburnt
-
-        for(int k=0; k<nspc; k++)
-            ypcc[k] *= d1;                       // initialize everything then correct
-        if(iCO2 > 0)                             // CO2 is not in the H2 mechs
-            ypcc[iCO2] = (x-nCnotFromCO2) + nCnotFromCO2*eta;       // init + formed
-        ypcc[iH2O] = (y-nHnotFromH2O)*0.5 + nHnotFromH2O*0.5*eta;   // init + formed
-        ypcc[iN2]  = z*0.5;
-        ypcc[iO2]  = 0.0;
-
+    ypcc.resize(nspc);
+    for(size_t k=0; k<nspc; k++) {                              // compute ypcc
+        if(mixf < mixfStoic)
+            ypcc[k] = y0[k] + (yst[k] - y0[k])*mixf/mixfStoic;
+        else
+            ypcc[k] = yst[k] + (y1[k] - yst[k])*(mixf-mixfStoic)/(1.0-mixfStoic);
     }
 
-    //--------------------------------------------------------------------------
-
-    double sum = 0.0;                       // normalize moles
-    for(int k=0; k<nspc; k++)
-        sum += ypcc[k];
-    assert(sum != 0.0);
-    for(int k=0; k<nspc; k++)
-        ypcc[k] /= sum;
-    gas->setMoleFractions( &ypcc[0] );      // set mole fractions
-    gas->getMassFractions( &ypcc[0] );      // set ypcc as mass fractions
-
-
-    //--------------------------------------------------------------------------
-
+    gas->setMassFractions(&ypcc[0]);
+    hpcc = h0*(1.0-mixf) + h1*mixf;
     gas->setState_HP(hpcc, P, 1.E-10);    // get temperature as Tadiabatic
-    //gas->setState_HP(hpcc, P);    // get temperature as Tadiabatic
     Tpcc = gas->temperature();
-
 }
 
 ///////////////////////////////////////////////////////////////////////////////

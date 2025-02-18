@@ -4,18 +4,31 @@ nTauSS:       20.0          # number of diffusive mixing timescales to run to ge
 nTauU:        10.0          # number of diffusive mixing timescales to run when solving unsteady profiles
 nsaveSS:       1            # number of save files when solving steady
 nsaveU:        16           # number of save files when solving unsteady profiles
-doUnifChi:    true                # set chi profile to chi0, else chi0*func(mixf)
+doUnifChi:    false               # set chi profile to chi0, else chi0*func(mixf)
 doSoot:       false       # flag turn on/off radiation
 
-chiList:
+chiList:                  # for doUnifChi = false
+  - 0.00001 
   - 0.0001 
   - 0.001 
   - 0.1 
   - 1
   - 10 
-  - 25 
-  - 31.5
-  - 31.6
+  - 100 
+  - 300 
+  - 378 
+  - 379 
+
+#chiList:                 # for doUnifChi true
+#  - 0.00001 
+#  - 0.0001 
+#  - 0.001 
+#  - 0.1 
+#  - 1
+#  - 10 
+#  - 25 
+#  - 31.5
+#  - 31.6
 
 hlList:
   - 0.0
@@ -31,6 +44,7 @@ hlList:
   - 0.50
   - 0.55
   - 0.60
+  - 0.65
 
 #-----------------
 

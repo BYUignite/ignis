@@ -92,6 +92,9 @@ int driver_flamelet_table() {
 
     size_t nsaveU_;
 
+    stringstream ss;
+    string fname;
+
     ///////////////////////
 
     for(int ichi=0; ichi<chiList.size(); ichi++) {           // loop chi values
@@ -123,8 +126,8 @@ int driver_flamelet_table() {
             break;
         }
         else {
-            stringstream ss; ss << "X_" << chiList[ichi] << "_hl_0.dat";
-            string fname = ss.str();
+            ss.str(""); ss << "X_" << chiList[ichi] << "_hl_0.dat";
+            fname = ss.str();
             flm.writeFile(fname);
             if(ichi==0) {
                 flm.set_hsens();
@@ -167,8 +170,8 @@ int driver_flamelet_table() {
                     //break;
                 }
                 else {
-                    stringstream ss; ss << "X_" << chiList[ichi] << "_hl_" << hlList[ihl] << ".dat";
-                    string fname = ss.str();
+                    ss.str(""); ss << "X_" << chiList[ichi] << "_hl_" << hlList[ihl] << ".dat";
+                    fname = ss.str();
                     flm.writeFile(fname);
                 
                 }
@@ -177,6 +180,21 @@ int driver_flamelet_table() {
         }
 
     }
+
+    /////////////////////// do Products of Complete Combustion: all heat losses
+    // NOTE: PCC does not give a good progress variable since rich products are CO2 and fuel
+
+    //cout << "\n\nWriting files for equilibrium" << endl;
+
+    //flm.setIC("equilibrium");
+    //for(int ihl=0; ihl<hlList.size(); ihl++) {     // loop heat loss values for given chi
+    //    flm.set_h(hlList[ihl]);
+    //    flm.set_T();
+    //    ss.str(""); ss << "EQ_hl_" << hlList[ihl] << ".dat";
+    //    fname = ss.str();
+    //    flm.writeFile(fname);
+    //}
+
     ///////////////////////
 
     return 0;
