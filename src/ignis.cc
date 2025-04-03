@@ -629,7 +629,7 @@ void ignis::setIC(const std::string icType, string fname) {
 
     //-------------------
 
-    // Soot is inialized to zero in the constructor
+    // Soot is initialized to zero in the constructor
 
     setpv();
 
@@ -639,7 +639,7 @@ void ignis::setIC(const std::string icType, string fname) {
 ///
 /// Compute fluxes for all transported variables assuming unity Lewis numbers for energy and species.
 /// Soot uses a thermophoretic flux.
-/// Only called if doLe1 is false (the default).
+/// Only called if doLe1 is true.
 ///
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1420,6 +1420,12 @@ int ignis::rhsf_flamelet(const double *vars, double *dvarsdt) {
     vector<vector<double> > hsp(ngrd, vector<double>(nsp));
     vector<double>          hsprrSum(ngrd, 0.0);
 
+    vector<vector<double>> D_F;   if(!doLe1) D_F.resize(ngrd, vector<double> (nsp, 0.0));
+    vector<double>         M;     if(!doLe1) M.resize(ngrd);
+    vector<double>         tcond; if(!doLe1) tcond.resize(ngrd);
+    vector<vector<double>> cp_R;  if(!doLe1) cp_R.resize(ngrd, vector<double> (nsp, 0.0));
+
+
     for(size_t i=0; i<ngrd; i++) {
 
         //------- set gas
@@ -1441,7 +1447,14 @@ int ignis::rhsf_flamelet(const double *vars, double *dvarsdt) {
             hsprrSum[i] += hsp[i][k] * rr[i][k];
         }
 
-        //-------- 
+        //--------
+        if(!doLe1) {
+            gas->getCp_R(&cp_R[i][0]);
+            M[i] = gas->meanMolecularWeight();
+            trn->getMixDiffCoeffs(&D_F[i][0]);
+            tcond[i] = trn->thermalConductivity();
+
+        }
 
         rho[i] = gas->density();                        // kg/m3
         cp[i]  = gas->cp_mass();
@@ -1453,65 +1466,172 @@ int ignis::rhsf_flamelet(const double *vars, double *dvarsdt) {
         }
     }
 
-    //------------ species
+    if(doLe1) {
+        //------------ species
 
-    vector<double> d2ydz2(ngrd);
-    vector<double> yy(ngrd);                            // intermediate transfer array
-    for(size_t k=0; k<nsp; k++) {
-        for(size_t i=0; i<ngrd; i++) 
-            yy[i] = y[i][k];
-        setDerivative2(yLbc[k], yRbc[k], yy, d2ydz2);
-        for(size_t i=0; i<ngrd; i++)
-            dvarsdt[Ia(i,k)] = 0.5*chi[i]*d2ydz2[i] + rr[i][k]/rho[i];
-    }
-
-    //------------ energy (temperature)
-
-    vector<double> d2Tdz2(ngrd);
-    setDerivative2(TLbc, TRbc, T, d2Tdz2);
-
-    vector<double> dTdz(ngrd);
-    setDerivative(TLbc, TRbc, T, dTdz);
-
-    if(doEnergyEqn) {
-
-        vector<double> dcpdz(ngrd);
-        setDerivative(cpLbc, cpRbc, cp, dcpdz);
-
-        vector<double> dydzdhdzSum(ngrd, 0.0);    //todo: fill this in
-        vector<double> dykdz(ngrd);
-        vector<double> dhkdz(ngrd);
-        vector<double> hh(ngrd);                            // intermediate transfer array
+        vector<double> d2ydz2(ngrd);
+        vector<double> yy(ngrd);                            // intermediate transfer array
         for(size_t k=0; k<nsp; k++) {
-            for(size_t i=0; i<ngrd; i++) {
+            for(size_t i=0; i<ngrd; i++) 
                 yy[i] = y[i][k];
-                hh[i] = hsp[i][k];
-            }
-            setDerivative(yLbc[k],   yRbc[k],   yy, dykdz);
-            setDerivative(hspLbc[k], hspRbc[k], hh, dhkdz);
+            setDerivative2(yLbc[k], yRbc[k], yy, d2ydz2);
             for(size_t i=0; i<ngrd; i++)
-                dydzdhdzSum[i] += dykdz[i]*dhkdz[i];
+                dvarsdt[Ia(i,k)] = 0.5*chi[i]*d2ydz2[i] + rr[i][k]/rho[i];
         }
 
-        vector<double> Q(ngrd);
-        if(doRadiation) setQrad(Q);
+        //------------ energy (temperature)
 
-        for(size_t i=0; i<ngrd; i++) {
-            dvarsdt[Ia(i,nvar-1)] = -hsprrSum[i]/(cp[i]*rho[i]) + 0.5*chi[i]*
-                (d2Tdz2[i] + (dTdz[i]*dcpdz[i] + dydzdhdzSum[i])/cp[i]);
-            if(doRadiation) dvarsdt[Ia(i,nvar-1)] += Q[i]/(rho[i]*cp[i]);
-            dvarsdt[Ia(i,nvar-1)] /= Tscale;
+        vector<double> d2Tdz2(ngrd);
+        setDerivative2(TLbc, TRbc, T, d2Tdz2);
+
+        vector<double> dTdz(ngrd);
+        setDerivative(TLbc, TRbc, T, dTdz);
+
+        if(doEnergyEqn) {
+
+            vector<double> dcpdz(ngrd);
+            setDerivative(cpLbc, cpRbc, cp, dcpdz);
+
+            vector<double> dydzdhdzSum(ngrd, 0.0);    //todo: fill this in
+            vector<double> dykdz(ngrd);
+            vector<double> dhkdz(ngrd);
+            vector<double> hh(ngrd);                            // intermediate transfer array
+            for(size_t k=0; k<nsp; k++) {
+                for(size_t i=0; i<ngrd; i++) {
+                    yy[i] = y[i][k];
+                    hh[i] = hsp[i][k];
+                }
+                setDerivative(yLbc[k],   yRbc[k],   yy, dykdz);
+                setDerivative(hspLbc[k], hspRbc[k], hh, dhkdz);
+                for(size_t i=0; i<ngrd; i++)
+                    dydzdhdzSum[i] += dykdz[i]*dhkdz[i];
+            }
+
+            vector<double> Q(ngrd);
+            if(doRadiation) setQrad(Q);
+
+            for(size_t i=0; i<ngrd; i++) {
+                dvarsdt[Ia(i,nvar-1)] = -hsprrSum[i]/(cp[i]*rho[i]) + 0.5*chi[i]*
+                    (d2Tdz2[i] + (dTdz[i]*dcpdz[i] + dydzdhdzSum[i])/cp[i]);
+                if(doRadiation) dvarsdt[Ia(i,nvar-1)] += Q[i]/(rho[i]*cp[i]);
+                dvarsdt[Ia(i,nvar-1)] /= Tscale;
+            }
+        }
+        else {
+            for(size_t i=0; i<ngrd; i++)
+                dvarsdt[Ia(i,nvar-1)] = 0.0;
+
         }
     }
     else {
+
+        //----------- species 
+
+        vector<double> d2ydz2(ngrd);
+        vector<double> yy(ngrd);
+        vector<double> drhoChidz(ngrd);
+        vector<double> dydz(ngrd);
+        double Cspec;      // used for upwinding convection term in species equation
+        
+        vector<double> rhochi(ngrd);
         for(size_t i=0; i<ngrd; i++)
-            dvarsdt[Ia(i,nvar-1)] = 0.0;
+            rhochi[i] = rho[i]*chi[i];
+        setDerivative(rho[0]*chi[0], rho[ngrd]*chi[ngrd], rhochi, drhoChidz);
 
+
+        
+        vector<vector<double>> Lei(ngrd, vector<double> (nsp,0.0));
+        for(size_t k=0; k<nsp; k++) {
+            for(size_t i=0; i<ngrd; i++) {
+                yy[i]        = y[i][k];
+                Lei[i][k]    = tcond[i]/(rho[i]*cp[i]*D_F[i][k]);
+            }
+            setDerivative2(yLbc[k], yRbc[k], yy, d2ydz2);
+
+            for(size_t i=0; i<ngrd; i++) {
+                Cspec = 0.25*(1-1/Lei[i][k])*drhoChidz[i]/rho[i];
+
+                if(Cspec < 0) {
+                    if(i == 0)
+                        dvarsdt[Ia(i,k)] = Cspec*(y[i][k]/dx[i]/2);
+                    else 
+                        dvarsdt[Ia(i,k)] = Cspec*(y[i][k]-y[i-1][k])/dx[i];
+                }
+
+                else {
+                    if(i == ngrd-1)
+                        dvarsdt[Ia(i,k)] = Cspec*(0.0-y[i][k])/dx[i]/2;
+                    else 
+                        dvarsdt[Ia(i,k)] = Cspec*(y[i+1][k]-y[i][k])/dx[i];
+                }
+
+
+                dvarsdt[Ia(i,k)] += 0.5*chi[i]*d2ydz2[i]/Lei[i][k] + rr[i][k]/rho[i];
+
+            }
+        }
+        //------------ energy (temperature)
+
+        vector<double> d2Tdz2(ngrd);
+        setDerivative2(TLbc, TRbc, T, d2Tdz2);
+
+        vector<double> dTdz(ngrd);
+        setDerivative(TLbc, TRbc, T, dTdz);
+
+        if(doEnergyEqn) {
+
+            vector<double> dcpdz(ngrd);
+            setDerivative(cpLbc, cpRbc, cp, dcpdz);
+
+            for(size_t i=0; i<ngrd; i++)
+                for(size_t k=0; k<nsp; k++)
+                    cp_R[i][k] *= Cantera::GasConstant;
+
+            vector<double> dydzdWdzdTdzSum(ngrd, 0.0);
+            vector<double> dykdz(ngrd);
+            vector<double> dWdz(ngrd);      // intermediate transfer array
+            setDerivative(M[0], M[ngrd], M, dWdz);
+            
+            // enthalpy flux term from Pitsch and Peters
+            
+            for(size_t k; k<nsp; k++) {
+                for(size_t i; i<ngrd; i++) {
+                    yy[i]     = y[i][k];
+                    Lei[i][k] = tcond[i]/(rho[i]*cp[i]*D_F[i][k]);
+
+                setDerivative(yLbc[k], yRbc[k], yy, dykdz);
+                for(size_t i; i<ngrd; i++)
+                    dydzdWdzdTdzSum[i] += 1/Lei[i][k]*(dykdz[i]+ y[i][k]/M[i]*dWdz[i])*(1 - cp_R[i][k]/cp[i])*dTdz[i];
+
+                }
+
+            }
+
+            vector<double> Q(ngrd);
+            if(doRadiation) setQrad(Q);
+
+            for(size_t i=0; i<ngrd; i++) {
+                dvarsdt[Ia(i,nvar-1)] = -hsprrSum[i]/(cp[i]*rho[i]) + 0.5*chi[i]*
+                    (d2Tdz2[i] + (dTdz[i]*dcpdz[i] - dydzdWdzdTdzSum[i]));
+                if(doRadiation) dvarsdt[Ia(i,nvar-1)] += Q[i]/(rho[i]*cp[i]);
+                dvarsdt[Ia(i,nvar-1)] /= Tscale;
+            }
+        }
+        else {
+            for(size_t i=0; i<ngrd; i++)
+                dvarsdt[Ia(i,nvar-1)] = 0.0;
+
+        }
     }
-
     //---------- soot
 
     if(doSoot) {
+        
+        vector<double> d2Tdz2(ngrd);
+        setDerivative2(TLbc, TRbc, T, d2Tdz2);
+
+        vector<double> dTdz(ngrd);
+        setDerivative(TLbc, TRbc, T, dTdz);
 
         double LeS = 1000.0;  // soot Lewis number
 
